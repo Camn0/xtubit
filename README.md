@@ -81,23 +81,21 @@ Because physical p-bit hardware requires specialized semiconductor fabrication, 
 
 ### System Topology
 
-The diagram below outlines the three execution planes of X-TUBIT. The color scheme uses high-contrast cards with distinct themed borders that remain clearly readable in both **Dark Mode** and **Light Mode**.
+The schematic below outlines the three decoupled architectural planes of X-TUBIT:
 
 ```mermaid
 flowchart TD
-    classDef dataCard fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef qpmhiCard fill:#0f172a,stroke:#0ea5e9,stroke-width:2px,color:#f8fafc;
-    classDef dockCard fill:#1e293b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
-    classDef solveCard fill:#1e293b,stroke:#ec4899,stroke-width:2px,color:#f8fafc;
-    classDef evalCard fill:#1e293b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
-    classDef uiCard fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+    classDef paperNode fill:#18181b,stroke:#71717a,stroke-width:1.5px,color:#f4f4f5;
+    classDef paperKey fill:#27272a,stroke:#d4d4d8,stroke-width:2px,color:#ffffff;
+    classDef paperSub fill:#18181b,stroke:#52525b,stroke-width:1px,color:#e4e4e7;
 
     subgraph Plane1["PLANE 1: OFFLINE DATA AND PRIORITIZATION"]
-        B1["[B1] Data Curation and Filter<br/>PubChem, ZINC, BindingDB<br/>QED and SA Filters, SELFIES"]:::dataCard
-        B2["[B2] 3D Conformer Generation<br/>RDKit ETKDGv3 and MMFF94<br/>Lowest-Energy 3D Conformer"]:::dataCard
-        B3["[B3] FAENet Geometry Embedder<br/>E(3) Stochastic Frame Averaging<br/>Invariant Atom Features"]:::dataCard
-        B4["[B4] Bayesian GNN Predictor<br/>Epistemic Uncertainty Quantification<br/>Posterior Affinity (mu, sigma)"]:::dataCard
-        B5["[B5] qPMHI Batch Selector<br/>Monte Carlo Acquisition Function<br/>Pareto-Optimal Candidate Subset (top-q)"]:::qpmhiCard
+        direction TB
+        B1["<b>B1: Data Curation & Standardization</b><br/>Bioactivity Manifests, QED/SA Filtering, SELFIES"]:::paperNode
+        B2["<b>B2: 3D Conformer Generation</b><br/>RDKit ETKDGv3, MMFF94 Lowest-Energy Selection"]:::paperNode
+        B3["<b>B3: Geometric Feature Extraction</b><br/>FAENet E(3) Stochastic Frame Averaging"]:::paperNode
+        B4["<b>B4: Bayesian Affinity Predictor</b><br/>Bayesian GNN Epistemic Posterior (mu, sigma)"]:::paperNode
+        B5["<b>B5: Multi-Objective Active Selection</b><br/>qPMHI Monte Carlo Pareto Acquisition (top-q)"]:::paperKey
 
         B1 --> B2
         B2 --> B3
@@ -106,16 +104,18 @@ flowchart TD
     end
 
     subgraph Plane2["PLANE 2: COMBINATORIAL DOCKING AND DIGITAL TWIN"]
-        B6["[B6] REstretto Fragment Placements<br/>BRICS Cavity Decomp (PDB 5V3Y)<br/>Rigid Placements, Interaction Delta E_i"]:::dockCard
-        B7["[B7] QUBO and Ising Builder<br/>Yanagisawa 4-Term Matrix Q<br/>Ising Mapping: J, h, c0"]:::dockCard
-        
-        subgraph Solvers["[B8] GPU HARDWARE DIGITAL TWIN SOLVERS"]
-            B8_SB["SB Solver<br/>Simulated Bifurcation<br/>Adiabatic Tensor Dynamics"]:::solveCard
-            B8_TESB["TESB Solver<br/>Tabu-Enhanced SB<br/>Memory-Guided Trap Escape"]:::solveCard
-            B8_PSA["pSA-PD Solver<br/>Probabilistic SA<br/>Partial Deactivation"]:::solveCard
+        direction TB
+        B6["<b>B6: Pocket Decomposition & Placements</b><br/>BRICS Cavity Grids (PDB 5V3Y), REstretto Rigid Poses"]:::paperNode
+        B7["<b>B7: QUBO Formulation & Ising Mapping</b><br/>Yanagisawa 4-Term Matrix Q to Ising (J, h, c0)"]:::paperNode
+
+        subgraph Solvers["HARDWARE DIGITAL TWIN COMBINATORIAL SOLVERS"]
+            direction LR
+            B8_SB["<b>Simulated Bifurcation (SB)</b><br/>Adiabatic Tensor Dynamics"]:::paperSub
+            B8_TESB["<b>Tabu-Enhanced SB (TESB)</b><br/>Memory-Guided Trap Escape"]:::paperKey
+            B8_PSA["<b>p-bit Annealing (pSA-PD)</b><br/>Partial Deactivation Dynamics"]:::paperSub
         end
 
-        B9["[B9] Decode and Evaluation<br/>One-Hot Repair and Covalent Assembly<br/>Pocket MMFF Refine, RMSD, TTS"]:::evalCard
+        B9["<b>B9: Decoding, Refinement & Evaluation</b><br/>One-Hot Constraint Repair, MMFF Refinement, RMSD, TTS"]:::paperNode
 
         B5 --> B6
         B6 --> B7
@@ -127,8 +127,8 @@ flowchart TD
         B8_PSA --> B9
     end
 
-    subgraph Plane3["PLANE 3: HUMAN-IN-THE-LOOP (HITL) PRESENTATION"]
-        DASH["Streamlit Pro HITL Dashboard<br/>Candidate Ranks | Interactive 3D Py3Dmol | Pareto Explorer | Solver Energy and TTS Logs"]:::uiCard
+    subgraph Plane3["PLANE 3: HUMAN-IN-THE-LOOP PRESENTATION"]
+        DASH["<b>Streamlit Pro HITL Dashboard</b><br/>Candidate Prioritization Table, Interactive 3D Poses, Pareto Frontier, Convergence Diagnostics"]:::paperNode
         B9 --> DASH
     end
 ```
@@ -176,7 +176,7 @@ Where:
 
 Expanding into canonical matrix form $E(x) = x^\top Q x + \text{const}$:
 - Diagonal: $Q_{ii} = A \Delta E_i - D$
-- Off-diagonal: $Q_{ij} = \frac{1}{2} (B c_{ij} + C b_{ij}) + D \cdot \mathbb{I}[i, j \in F_k]$
+- Off-diagonal: $Q_{ij} = \frac{1}{2} (B c_{ij} + C b_{ij}) + D \cdot [i, j \in F_k]$
 
 ### Ising Hamiltonian Transformation
 To map the problem onto physical or simulated Ising spins $s_i \in \{-1, +1\}$ via $x_i = \frac{s_i + 1}{2}$:
@@ -184,9 +184,9 @@ To map the problem onto physical or simulated Ising spins $s_i \in \{-1, +1\}$ v
 $$H_{\text{Ising}}(s) = -\frac{1}{2} s^\top J s - h^\top s + c_0$$
 
 With exact algebraic conversions:
-$$J = -\frac{1}{2} \left( Q - \operatorname{diag}(Q) \right)$$
+$$J = -\frac{1}{2} \left( Q - \mathrm{diag}(Q) \right)$$
 $$h = -\frac{1}{2} Q \mathbf{1}$$
-$$c_0 = \frac{1}{2} \operatorname{tr}(Q) + \frac{1}{2} \sum_{i < j} Q_{ij}$$
+$$c_0 = \frac{1}{2} \mathrm{tr}(Q) + \frac{1}{2} \sum_{i < j} Q_{ij}$$
 
 ### Digital Twin Solvers: SB, TESB, and pSA-PD
 1. **Simulated Bifurcation (SB)**: Solves non-convex Ising optimization via continuous nonlinear adiabatic bifurcation dynamics on coupled classical oscillators ([Goto et al., 2021](https://doi.org/10.1126/sciadv.abe7953)).
@@ -198,7 +198,7 @@ In the active pre-screening stage (B5), the candidate pool is evaluated across t
 
 To prioritize molecules that maximize the Pareto frontier under epistemic uncertainty $\sigma$, the **Probabilistic Maximum Hypervolume Improvement (qPMHI)** score computes the Monte Carlo expectation of hypervolume contribution ([Muthyala et al., 2026](https://doi.org/10.1021/acs.iecr.5c04066)):
 
-$$\alpha_{\text{qPMHI}}(x) = \mathbb{E}_{y \sim \mathcal{N}(\mu(x), \sigma^2(x))} \left[ \Delta \operatorname{HV}(y \cup \mathcal{P}_{\text{curr}}, \mathbf{r}) \right]$$
+$$\alpha_{\text{qPMHI}}(x) = \mathbb{E}_{y \sim \mathcal{N}(\mu(x), \sigma^2(x))} \left[ \Delta \mathrm{HV}(y \cup \mathcal{P}_{\text{curr}}, \mathbf{r}) \right]$$
 
 ---
 
@@ -216,47 +216,44 @@ To guarantee methodological rigor and prevent data leakage, X-TUBIT adopts the *
 
 ```mermaid
 flowchart TD
-    classDef inputCard fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef splitCard fill:#1e293b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
-    classDef calibCard fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
-    classDef blindCard fill:#1e293b,stroke:#ec4899,stroke-width:2px,color:#f8fafc;
-    classDef solveCard fill:#1e293b,stroke:#6366f1,stroke-width:2px,color:#f8fafc;
-    classDef metricCard fill:#1e293b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+    classDef paperNode fill:#18181b,stroke:#71717a,stroke-width:1.5px,color:#f4f4f5;
+    classDef paperKey fill:#27272a,stroke:#d4d4d8,stroke-width:2px,color:#ffffff;
+    classDef paperSub fill:#18181b,stroke:#52525b,stroke-width:1px,color:#e4e4e7;
 
-    subgraph DataInputs["DATA PREPARATION AND SPLIT"]
-        ACT["Curated Pks13 Actives<br/>pIC50 Labels from BindingDB and Literature"]:::inputCard
-        SCAF["Bemis-Murcko Scaffold Split<br/>Strict Disjoint Scaffold Partitioning"]:::splitCard
+    subgraph Stage1["STAGE 1: DATA CURATION AND DISJOINT SCAFFOLD PARTITIONING"]
+        ACT["<b>Bioactivity Data</b><br/>BindingDB & Literature pIC50 Values"]:::paperNode
+        SCAF["<b>Bemis-Murcko Scaffold Split</b><br/>Disjoint Train / Calibration / Evaluation Sets"]:::paperKey
         ACT --> SCAF
     end
 
-    subgraph CalibrationPhase["CALIBRATION PHASE (FROZEN BEFORE TEST)"]
-        CALIB_STRUCT["Calibration Structures<br/>PDB 5V40, 5V41"]:::calibCard
-        TUNING["Hyperparameter Calibration<br/>Tune Weights A, B, C, D and Penalty Strengths"]:::calibCard
+    subgraph Stage2["STAGE 2: FROZEN CALIBRATION PHASE"]
+        CALIB_STRUCT["<b>Calibration Complexes</b><br/>PDB 5V40, 5V41 (Disjoint Targets)"]:::paperNode
+        TUNING["<b>Hyperparameter Optimization</b><br/>Lock Weights A, B, C, D & Penalty Strengths"]:::paperNode
         CALIB_STRUCT --> TUNING
     end
 
-    subgraph BlindEvaluation["RETROSPECTIVE BLIND TEST EVALUATION"]
-        TEST_ACT["Held-Out Test Actives<br/>Primary: TAM16 (PDB 5V3Y)<br/>DEL Hits: PDB 8TQG, 8TQV, 8TR4"]:::blindCard
-        DECOYS["DUD-E Matched Property Decoys<br/>Matched MW, logP, HBD, HBA, RotBonds"]:::blindCard
-        BLIND_POOL["Blinded Evaluation Pool<br/>Coordinates Regenerated from 1D SMILES"]:::blindCard
+    subgraph Stage3["STAGE 3: RETROSPECTIVE BLIND EVALUATION POOL"]
+        TEST_ACT["<b>Held-Out Test Actives</b><br/>Primary: TAM16 (PDB 5V3Y)<br/>DEL Hits: PDB 8TQG, 8TQV, 8TR4"]:::paperKey
+        DECOYS["<b>DUD-E Property-Matched Decoys</b><br/>Matched MW, logP, HBD, HBA, Rotatable Bonds"]:::paperNode
+        BLIND_POOL["<b>Blinded Compound Pool</b><br/>3D Conformations Generated from 1D SMILES"]:::paperNode
         
         TEST_ACT --> BLIND_POOL
         DECOYS --> BLIND_POOL
     end
 
-    subgraph SolverBench["MULTI-SEED DIGITAL TWIN BENCHMARK"]
-        SOLVERS["Ising Solver Benchmark<br/>Simulated Bifurcation (SB)<br/>Tabu-Enhanced SB (TESB)<br/>Probabilistic-bit SA (pSA-PD)"]:::solveCard
+    subgraph Stage4["STAGE 4: MULTI-SEED DIGITAL TWIN SOLVER BENCHMARK"]
+        SOLVERS["<b>Ising Solver Execution</b><br/>Simulated Bifurcation (SB) vs. TESB vs. pSA-PD"]:::paperKey
     end
 
-    subgraph MetricReporting["FROZEN METRIC REPORTING"]
-        RMSD["Pose Accuracy<br/>Heavy-Atom RMSD <= 2.0 A and 2.5 A"]:::metricCard
-        HIT["Screening Enrichment<br/>Top-k Recovery Rate from Decoys"]:::metricCard
-        TTS["Computational Performance<br/>Time-to-Solution and Energy Gap"]:::metricCard
+    subgraph Stage5["STAGE 5: FROZEN EVALUATION METRICS"]
+        RMSD["<b>Structural Pose Accuracy</b><br/>Heavy-Atom RMSD <= 2.0 A & <= 2.5 A"]:::paperNode
+        HIT["<b>Virtual Screening Enrichment</b><br/>Top-k Recovery Rate from Decoy Pool"]:::paperNode
+        TTS["<b>Optimization Efficiency</b><br/>Time-to-Solution (TTS) & Energy Attainment"]:::paperNode
     end
 
-    SCAF -->|Scaffold Calibration Sets| CALIB_STRUCT
+    SCAF -->|Calibration Set| CALIB_STRUCT
     SCAF -->|Held-Out Scaffolds| TEST_ACT
-    TUNING -->|Locked Hyperparameters| SOLVERS
+    TUNING -->|Frozen Hyperparameters| SOLVERS
     BLIND_POOL --> SOLVERS
     SOLVERS --> RMSD
     SOLVERS --> HIT
