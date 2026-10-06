@@ -1,0 +1,6 @@
+weights: {A: 1.0, B: 5.0, C: 5.0, D: 25.0}
+formulation: yanagisawa_reward
+h4_factor: 0.5
+pair_convention: upper
+qubo_dtype: float64
+strict_equivalence_tol: 1.0e-8

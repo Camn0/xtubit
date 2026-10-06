@@ -1,0 +1,6 @@
+primary_rmsd_A: 2.0
+comparison_rmsd_A: 2.5
+tts_target_probability: 0.99
+repair_invalid: true
+strict_valid_metric: true
+refinement: mmff_or_openmm

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xtubit"
+version = "0.1.0"
+description = "Original X-TUBIT PKM-KC assembly scaffold"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyyaml",
+  "pyarrow",
+  "rdkit",
+  "selfies",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

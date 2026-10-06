@@ -1,0 +1,11 @@
+node_hidden: 128
+message_layers: 3
+prior_sigma: 0.1
+kl_weight: 0.01
+kl_sweep: [0.001,0.003,0.01,0.03,0.1]
+lr: 0.001
+epochs: 300
+batch_size: 32
+mc_samples: 50
+mc_sweep: [20,50,100]
+calibration: scalar_sigma_temperature

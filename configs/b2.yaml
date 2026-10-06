@@ -1,0 +1,5 @@
+embedding: ETKDGv3
+num_conformers: 30
+seed: 7
+mmff_max_iters: 2000
+choose: lowest_mmff_energy

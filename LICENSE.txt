@@ -1,0 +1,5 @@
+X-TUBIT BUILD PACK LICENSE
+
+The original files under src/, configs/, tests/, scripts/, app/, docs/ and data/ in this pack are provided for the X-TUBIT project as an assembly scaffold. Third-party software referenced under third_party/SOURCES.md remains under its own license and is not redistributed by this pack.
+
+Before distributing a built system, preserve each third-party license and attribution notice in the retrieved repositories.

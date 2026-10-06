@@ -1,0 +1,5 @@
+seed: 7
+device: cuda
+run_root: data/processed
+artifact_schema_version: 1
+strict_provenance: true

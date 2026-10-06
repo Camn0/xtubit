@@ -1,0 +1,11 @@
+fragmentation: BRICS
+min_fragment_heavy_atoms: 4
+subregion_A: [2.0,2.0,2.0]
+poses_per_fragment_per_subregion: 20
+pose_rmsd_cluster_A: 1.0
+output_score_threshold_kcal_mol: 0.0
+no_local_opt: true
+pair_distance_prefilter_A: 8.0
+uff_energy_threshold_kcal_mol: 500.0
+receptor_pdb: 5V3Y
+fallback_docking: vina

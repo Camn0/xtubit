@@ -1,0 +1,7 @@
+batch_q: 20
+mc_samples: 512
+sigma_floor: 1.0e-6
+sa_inverse: "clip((10-SA)/9,0,1)"
+reference_point: [3.0,0.0,0.0]
+objective_order: [pIC50,QED,SA_inv]
+all_maximize: true

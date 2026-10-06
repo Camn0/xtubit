@@ -1,0 +1,9 @@
+frame_averaging: "3D"
+fa_method: "stochastic"
+cutoff_A: 6.0
+hidden_channels: 128
+num_filters: 128
+num_gaussians: 50
+num_interactions: 4
+phys_embeds: true
+freeze_faenet_first: true

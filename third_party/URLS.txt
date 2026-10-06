@@ -1,0 +1,17 @@
+https://github.com/bqth29/simulated-bifurcation-algorithm
+https://github.com/Tao-qubit/Tabu-Enhanced-Simulated-Bifurcation
+https://github.com/nonizawa/pSA
+https://github.com/nonizawa/GPU-pSAv
+https://github.com/PaulsonLab/Generative_MOBO_qPMHI
+https://github.com/vict0rsch/faenet
+https://github.com/RolnickLab/ocp
+https://github.com/akiyamalab/restretto
+https://github.com/akiyamalab/coffee-presc
+https://github.com/alebeneventi/Pi-Stacking
+https://www.rcsb.org/structure/5V3Y
+https://files.rcsb.org/download/5V3Y.cif
+https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest-tutorial
+https://dude.docking.org/
+https://zinc20.docking.org/
+https://doi.org/10.1038/s42005-026-02538-2
+https://doi.org/10.5281/zenodo.10889782

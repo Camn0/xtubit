@@ -1,0 +1,11 @@
+endpoint: enzymatic_IC50
+pIC50_formula: "9 - log10(value_nM)"
+standardize_largest_fragment: true
+uncharged: true
+train_frac: 0.75
+val_frac: 0.125
+test_frac: 0.125
+split: scaffold
+min_labels_for_full_regression: 100
+hard_max_heavy_atoms: 80
+allowed_elements: [B,C,N,O,F,P,S,Cl,Br,I]

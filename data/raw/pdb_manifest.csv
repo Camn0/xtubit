@@ -1,0 +1,9 @@
+pdb_id,role,ligand_or_status,notes
+5V3Y,main_test,TAM16,1.98_A; Pks13-TE
+5V40,calibration_or_test,TAM6,1.99_A
+5V41,calibration_or_test,TAM5,2.05_A
+5V42,calibration_or_test,TAM3,1.99_A
+8TQG,additional_test,X20419,verify_complex_chain_and_ligand
+8TQV,additional_test,X20403_JS9,verify ligand coordinates
+8TR4,additional_test,X20404,verify ligand coordinates
+8TRY,hold,unknown,do_not_count_until_verified

@@ -1,0 +1,22 @@
+seeds: [0,1,2,3,4,5,6,7,8,9]
+sb:
+  agents: 256
+  max_steps: 10000
+  mode: discrete
+  early_stopping: false
+tesb:
+  warm_iter: 1000
+  warm_batch: 100
+  run_iter: 9000
+  num_tabu: 2
+  xi: null
+  discrete: true
+psa:
+  cycles: 1000
+  trials: 100
+  gamma: 0.1
+  delta: 10.0
+  tau: 1
+  nrnd: 1.0
+  mean_range: 4
+  stall_prop: 0.5
