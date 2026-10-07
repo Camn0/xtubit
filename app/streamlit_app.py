@@ -1730,9 +1730,9 @@ with tab_compare:
         },
         {
             "Rule & Criterion": "hERG Potassium Channel Safety",
-            f"Mol A ({row_a['mol_id']})": "PASS (Safe)" if row_a.get("is_herg_safe", True) else "FAIL (High Risk)",
-            f"Mol B ({row_b['mol_id']})": "PASS (Safe)" if row_b.get("is_herg_safe", True) else "FAIL (High Risk)",
-            f"Lead ({ref_row['mol_id']})": "PASS (Safe)",
+            f"Mol A ({row_a['mol_id']})": "FAIL (High Risk)" if row_a.get("herg_risk") == "High Risk" or not row_a.get("is_herg_safe", True) else ("WARN (Moderate Risk)" if row_a.get("herg_risk") == "Moderate Risk" else "PASS (Safe)"),
+            f"Mol B ({row_b['mol_id']})": "FAIL (High Risk)" if row_b.get("herg_risk") == "High Risk" or not row_b.get("is_herg_safe", True) else ("WARN (Moderate Risk)" if row_b.get("herg_risk") == "Moderate Risk" else "PASS (Safe)"),
+            f"Lead ({ref_row['mol_id']})": "FAIL (High Risk)" if ref_row.get("herg_risk") == "High Risk" or not ref_row.get("is_herg_safe", True) else ("WARN (Moderate Risk)" if ref_row.get("herg_risk") == "Moderate Risk" else "PASS (Safe)"),
             "Significance": "Cardiotoxicity avoidance (QT interval prolongation)"
         },
         {
@@ -2305,27 +2305,7 @@ with tab_solvers:
                 delta=f"{num_agents} Agents (100% Feasible)",
                 help=f"Simulated Bifurcation execution time. Solver score: H = {qubo_interaction_score:.1f} a.u."
             )
-        with res_col2:
-            st.metric(
-                "MMFF94 Relaxed Energy",
-                f"{relax_res['minimized_energy_kcal_mol']:.2f} kcal/mol",
-                delta=f"{relax_res['delta_energy_kcal_mol']:+.2f} kcal/mol relaxation",
-                help="Post-annealing continuous force field relaxation inside rigid pocket boundaries."
-            )
-        with res_col3:
-            st.metric(
-                "Heavy-Atom Pose RMSD",
-                f"{rmsd_val:.2f} Å",
-                delta="Target: <2.0 Å (PDB 5V3Y)",
-                help="Heavy-atom RMSD vs. Pks13 crystallographic reference pose (5V3Y)."
-            )
-        with res_col4:
-            st.metric(
-                "Digital Annealing Speed",
-                f"{elapsed_ms:.1f} ms",
-                delta=f"{num_agents} Agents ({'100% Feasible' if violations == 0 else f'{violations} Violations'})",
-                help="Time required to reach optimal conformer. Thousands of times faster than classical grid docking."
-            )
+
 
         # Multi-model SDF Download button
         st.download_button(

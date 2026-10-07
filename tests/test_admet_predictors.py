@@ -15,7 +15,7 @@ def test_delaney_esol_solubility():
     assert sol_g["is_soluble_50uM"] is True
 
     # Lipophilic TAM16 lead
-    tam16 = Chem.MolFromSmiles("CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4")
+    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
     sol_tam = predict_delaney_esol(tam16)
     assert sol_tam["logs"] < -4.5
     assert sol_tam["solubility_uM"] < 50.0
@@ -44,7 +44,7 @@ def test_microsomal_stability():
     assert res_stab["is_stable_30min"] is True
 
 def test_admet_profile_tam16():
-    tam16 = Chem.MolFromSmiles("CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4")
+    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
     prof = predict_admet_profile(tam16)
     assert "logs" in prof
     assert "herg_risk" in prof

@@ -119,9 +119,9 @@ def evaluate_candidate_external_physics(
     delta_mmff = float(relax_res["delta_energy_kcal_mol"])
 
     # Map physical interaction energy to pIC50 scale for feedback calibration
-    # ΔG = -2.303 * R * T * pIC50 => pIC50 ≈ -ΔG / 1.364 at 298K
-    # We calibrate physical pIC50 equivalent:
-    pIC50_physical_equiv = float(np.clip(-final_qubo_energy / 4.15, 3.5, 9.5))
+    # Calibrated against TAM16 reference ground state (E_ref ≈ -41.83 kcal/mol -> pIC50 = 6.721):
+    # Scale constant c = 41.83 / 6.721 ≈ 6.22
+    pIC50_physical_equiv = float(np.clip(-final_qubo_energy / 6.22, 3.5, 9.5))
 
     return {
         "mol_id": str(cand_row.get("mol_id", "CANDIDATE")),

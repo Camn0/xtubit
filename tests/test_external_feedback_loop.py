@@ -13,9 +13,9 @@ def test_external_physics_evaluation():
         "mu": 6.22,
         "qed": 0.653,
         "sa": 2.42,
-        "mw": 393.5,
-        "logp": 4.12,
-        "smiles_can": "CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4",
+        "mw": 298.34,
+        "logp": 4.74,
+        "smiles_can": "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23",
     }
     phys_res = evaluate_candidate_external_physics(cand, n_qubits=60, mmff_steps=50, num_agents=16)
 
