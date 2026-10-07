@@ -1,1 +1,4 @@
 {"timestamp": 1791353516.970597, "mol_id": "X20403", "action": "APPROVED_FOR_DOCKING", "qed": 0.5039618931046704, "mu": 7.399738788604736}
+{"timestamp": 1791374325.6316729, "timestamp_iso": "2026-10-07T11:58:45Z", "reviewer": "Lab Investigator", "mol_id": "TAM17", "action": "PRIORITIZED_FOR_SPR", "note": ""}
+{"timestamp": 1791375768.7870743, "timestamp_iso": "2026-10-07T12:22:48Z", "reviewer": "Lab Investigator", "mol_id": "X20403", "action": "APPROVED_FOR_SYNTHESIS", "note": ""}
+{"timestamp": 1791377655.95328, "timestamp_iso": "2026-10-07T12:54:15Z", "reviewer": "Lab Investigator", "mol_id": "X20403", "action": "APPROVED_FOR_SYNTHESIS", "note": ""}
