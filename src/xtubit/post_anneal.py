@@ -18,8 +18,8 @@ from rdkit.Chem import AllChem, Descriptors, rdMolAlign
 from .b6_pairs import PKS13_SUBPOCKETS, PKS13_ADJACENT_SUBPOCKETS
 
 
-# Canonical SMILES for TAM16 lead
-TAM16_SMILES = "CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4"
+# Canonical SMILES for TAM16 lead (Aggarwal et al. 2017 Cell, PDB 5V3Y)
+TAM16_SMILES = "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23"
 
 
 def decode_bitstring_to_subpockets(

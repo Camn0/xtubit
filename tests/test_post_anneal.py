@@ -42,9 +42,9 @@ def test_stitch_fragments_valency_and_aromaticity():
     assert mol is not None
     assert mol.GetNumConformers() >= 1
 
-    # 2. Heavy atom count
+    # 2. Heavy atom count (True TAM16 has exactly 22 heavy atoms: C20H20O4 core)
     mol_no_h = Chem.RemoveHs(mol)
-    assert mol_no_h.GetNumHeavyAtoms() == 25, f"Expected 25 heavy atoms for TAM16, got {mol_no_h.GetNumHeavyAtoms()}"
+    assert mol_no_h.GetNumHeavyAtoms() == 22, f"Expected 22 heavy atoms for TAM16, got {mol_no_h.GetNumHeavyAtoms()}"
 
     # 3. Valency & aromaticity check
     sanitized = Chem.SanitizeMol(mol_no_h, catchErrors=True)
