@@ -19,6 +19,7 @@ dependencies = [
   "scipy",
   "scikit-learn",
   "simulated-bifurcation",
+  "plotly",
 ]
 
 [project.optional-dependencies]
