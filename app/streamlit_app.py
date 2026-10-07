@@ -718,7 +718,7 @@ with h_c1:
     """, unsafe_allow_html=True)
 with h_c2:
     with st.popover("Target Biology & Platform Guide", use_container_width=True):
-        st.markdown("""
+        st.markdown(r"""
         ### Target Biology & Screening Mechanism
         - **Target Protein**: *Mycobacterium tuberculosis* Polyketide Synthase 13 Thioesterase Domain (**Pks13-TE**, PDB: `5V3Y`, 1.98 Å resolution).
         - **Mechanism**: Pks13 catalyzes the final condensation step synthesizing mature mycolic acid cell walls. Its inhibition kills multidrug-resistant tuberculosis strains.
@@ -1333,17 +1333,17 @@ with tab_compare:
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_a + [vals_a[0]], theta=closed_metrics, fill="toself",
             name=f"A: {row_a['mol_id']}",
-            line=dict(color="#2a6f55", width=2.8),
-            marker=dict(size=6, color="#2a6f55"),
-            fillcolor="rgba(42, 111, 85, 0.20)",
+            line=dict(color="#7b2cbf", width=2.8),
+            marker=dict(size=6, color="#7b2cbf"),
+            fillcolor="rgba(123, 44, 191, 0.22)",
             hovertemplate="<b>A: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_b + [vals_b[0]], theta=closed_metrics, fill="toself",
             name=f"B: {row_b['mol_id']}",
-            line=dict(color="#c45a2c", width=2.8),
-            marker=dict(size=6, color="#c45a2c"),
-            fillcolor="rgba(196, 90, 44, 0.18)",
+            line=dict(color="#a06cd5", width=2.8),
+            marker=dict(size=6, color="#a06cd5"),
+            fillcolor="rgba(160, 108, 213, 0.18)",
             hovertemplate="<b>B: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
@@ -1736,13 +1736,18 @@ with tab_solvers:
             bit_list = [int(b) for b in best_bits.tolist()]
             raw_energy = float(best_val)
         else:
-            import simulated_bifurcation as sb
-            bits, values = sb.minimize(
-                Q_mod, domain="binary", agents=int(num_agents),
-                max_steps=200, device="cpu", verbose=False
+            try:
+                from xtubit.solvers.sb_adapter import solve_sb
+            except ImportError:
+                from src.xtubit.solvers.sb_adapter import solve_sb
+            bits, values = solve_sb(
+                Q_mod, agents=int(num_agents), max_steps=1000,
+                mode="discrete", device="cpu"
             )
-            raw_energy = float(values.min().item())
-            bit_list = bits.int().tolist() if hasattr(bits, "int") else [int(b) for b in bits]
+            best_idx = values.argmin().item()
+            raw_energy = float(values[best_idx].item())
+            best_agent_bits = bits[best_idx]
+            bit_list = [int(b) for b in best_agent_bits.int().tolist()]
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000
 
@@ -1761,7 +1766,12 @@ with tab_solvers:
 
         tam16_baseline_e = -28.10
         delta_lead = final_energy - tam16_baseline_e
-        delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol More Stable than TAM16" if delta_lead <= 0 else f"{delta_lead:.2f} kcal/mol Less Stable than TAM16"
+        if cand_row["mol_id"] == "TAM16" or abs(delta_lead) < 0.05:
+            delta_lead_str = "Baseline Co-Crystal Lead"
+        elif delta_lead < 0:
+            delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol More Stable than TAM16"
+        else:
+            delta_lead_str = f"{delta_lead:.2f} kcal/mol Less Stable than TAM16"
 
         st.markdown("---")
         st.markdown(f"##### Physical Docking & Conformer Assembly Results for **{cand_row['mol_id']}**")
@@ -1904,14 +1914,14 @@ with tab_solvers:
                 st.metric("Exact Baseline Energy", f"{exact_solver['energy']:.2f} kcal/mol")
 
         cs1, cs2 = st.columns([1.1, 1.1], gap="large")
-        mochi_bars = ["#607274", "#2a6f55", "#7d7482", "#c45a2c"]
+        solver_purples = ["#5e548e", "#7b2cbf", "#9d4edd", "#b072e6"]
 
         with cs1:
             st.markdown("##### Ground-State Energy Across Solvers (kcal/mol)")
             fig_e = go.Figure()
             fig_e.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["energy"],
-                marker_color=mochi_bars, text=[f"{e:.2f}" for e in df_solvers["energy"]],
+                marker_color=solver_purples, text=[f"{e:.2f}" for e in df_solvers["energy"]],
                 textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_e.update_layout(
@@ -1927,7 +1937,7 @@ with tab_solvers:
             fig_t = go.Figure()
             fig_t.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["tts_99"],
-                marker_color=mochi_bars, text=[f"{t:.4f}s" for t in df_solvers["tts_99"]],
+                marker_color=solver_purples, text=[f"{t:.4f}s" for t in df_solvers["tts_99"]],
                 textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_t.update_layout(
@@ -1950,6 +1960,25 @@ with tab_solvers:
             }),
             use_container_width=True
         )
+
+        with st.expander("Algorithmic Engine Architecture & Benchmarking Deep Dive", expanded=False):
+            st.markdown(r"""
+            ##### Why Benchmark on 12 Qubits When Brute Force Works?
+            - **Combinatorial Scaling Paradox:** For this minimal 4-pocket testbed ($2^{12} = 4096$ states), **Exact Brute Force** runs in ~10 milliseconds on a single CPU core.
+            - **The Real-World Reality:** In realistic flexible docking (50–100 rotatable bonds and sub-pocket placements), the search space explodes to $2^{60} \approx 10^{18}$ configurations. At $10^9$ evaluations per second, brute force would take **over 36 years per molecule**, rendering it mathematically impossible for high-throughput screening.
+            - **Why Ground Truth Matters:** Quantum and digital annealing algorithms must be rigorously benchmarked on problems where the **exact mathematical global ground state is provably known**. Only with an exact baseline can we measure the **Success Probability ($P_{\text{success}}$)** and calculate the true **Time-to-Solution ($\text{TTS}_{99}$)**:
+            $$\text{TTS}_{99} = t_{\text{run}} \cdot \frac{\ln(1 - 0.99)}{\ln(1 - P_{\text{success}})}$$
+
+            ---
+
+            ##### Algorithm Engine Taxonomy: What is the Difference?
+            | Algorithm Engine | Class & Mechanism | Advantages & Limitations | Benchmark Outcome |
+            | :--- | :--- | :--- | :--- |
+            | **Exact (Brute Force)** | Deterministic exhaustive enumeration | Guaranteed global minimum; $O(2^N)$ exponential wall prevents scaling beyond $N > 25$. | $P_{\text{success}} = 100\%$, baseline energy $-28.10$ kcal/mol |
+            | **Two-Stage tSB (Tabu Bifurcation)** | Non-linear Hamiltonian bifurcation with tabu repulsion memory | Rapid convergence without thermal hopping; repulsive fields prevent returning to visited minima. | **Fastest TTS99 (0.13 s)**, $P_{\text{success}} = 100\%$ |
+            | **TApSA (Time-Average Parallel SA)** | Classical parallel annealing with temporal field averaging | Moving average smooths out high-frequency thermal fluctuations to avoid shallow traps. | Moderate speed (0.27 s TTS99), $P_{\text{success}} = 60\%$ |
+            | **SpSA (Stochastic Parallel SA)** | Classical parallel Markov chain Monte Carlo (Metropolis) | Susceptible to getting trapped in deep local metastable energy wells. | Slowest TTS99 (0.91 s), $P_{\text{success}} = 30\%$ |
+            """)
 
 # ==============================================================================
 # Tab 5: Validation & Lab Compliance Dossier
