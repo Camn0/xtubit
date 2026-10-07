@@ -26,151 +26,138 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==============================================================================
-# Theme Configuration (Light Mode Default with Conservative Academic Palette)
-# ==============================================================================
-with st.sidebar:
-    st.markdown("### Display Settings")
-    theme_mode = st.radio(
-        "Color Palette",
-        options=["Light (Journal)", "Dark (Academic Slate)"],
-        index=0,
-        help="Select between classic journal publication light mode and muted academic dark slate."
-    )
-    is_dark = "Dark" in theme_mode
-
-if is_dark:
-    theme = {
-        "bg": "#0f172a",
-        "card_bg": "#1e293b",
-        "border": "#334155",
-        "text": "#f8fafc",
-        "subtext": "#94a3b8",
-        "plotly_bg": "#1e293b",
-        "grid": "#334155",
-        "axis_text": "#94a3b8",
-        "viewer_bg": "#0f172a",
-        "primary": "#3b82f6",
-        "secondary": "#d97706",
-        "bar_colors": ["#3b82f6", "#10b981", "#64748b", "#d97706"],
-        "callout_bg": "#1e293b",
-        "callout_border": "#3b82f6"
-    }
-else:
-    theme = {
-        "bg": "#f8fafc",
-        "card_bg": "#ffffff",
-        "border": "#e2e8f0",
-        "text": "#0f172a",
-        "subtext": "#475569",
-        "plotly_bg": "#ffffff",
-        "grid": "#f1f5f9",
-        "axis_text": "#475569",
-        "viewer_bg": "#ffffff",
-        "primary": "#1d4ed8",
-        "secondary": "#b45309",
-        "bar_colors": ["#1d4ed8", "#047857", "#475569", "#b45309"],
-        "callout_bg": "#f1f5f9",
-        "callout_border": "#1d4ed8"
-    }
-
-THEME_CSS = f"""
+# Conservative Academic Styling: Light theme, high contrast, zero neon
+CONSERVATIVE_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {{
+    html, body, [class*="css"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }}
+    }
 
-    .stApp {{
-        background-color: {theme['bg']};
-        color: {theme['text']};
-    }}
-
-    /* Clean Card Container */
-    .journal-header {{
-        background-color: {theme['card_bg']};
-        border: 1px solid {theme['border']};
-        border-radius: 8px;
-        padding: 18px 24px;
-        margin-bottom: 20px;
-    }}
-    .journal-title {{
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: {theme['text']};
-        margin-bottom: 4px;
-    }}
-    .journal-subtitle {{
-        font-size: 0.85rem;
-        color: {theme['subtext']};
-        line-height: 1.4;
-    }}
-    .journal-meta {{
-        display: flex;
-        flex-wrap: wrap;
-        gap: 18px;
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid {theme['border']};
-        font-size: 0.8rem;
-        color: {theme['subtext']};
-    }}
-    .meta-tag {{
-        font-weight: 600;
-        color: {theme['text']};
-    }}
-
-    /* Stat Box */
-    .stat-card {{
-        background-color: {theme['card_bg']};
-        border: 1px solid {theme['border']};
-        border-radius: 6px;
-        padding: 10px 14px;
-        margin-bottom: 10px;
-    }}
-    .stat-label {{
-        font-size: 0.75rem;
-        color: {theme['subtext']};
+    /* Force high-contrast readability on all metric elements */
+    [data-testid="stMetricValue"] {
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        font-size: 1.25rem !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #334155 !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-    }}
-    .stat-value {{
-        font-size: 1.05rem;
-        font-weight: 600;
-        color: {theme['text']};
-        margin-top: 2px;
-    }}
+    }
+    [data-testid="stMetricDelta"] svg {
+        fill: #047857 !important;
+    }
+    [data-testid="stMetricDelta"] div {
+        color: #047857 !important;
+        font-weight: 600 !important;
+    }
 
-    /* Explanatory callout */
-    .academic-callout {{
-        background-color: {theme['callout_bg']};
-        border-left: 3px solid {theme['callout_border']};
-        border-radius: 0 6px 6px 0;
+    /* Header Panel */
+    .journal-header {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 18px 22px;
+        margin-bottom: 20px;
+    }
+    .journal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 4px;
+        letter-spacing: -0.01em;
+    }
+    .journal-subtitle {
+        font-size: 0.85rem;
+        color: #475569;
+        line-height: 1.4;
+    }
+    .journal-meta-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid #e2e8f0;
+        font-size: 0.8rem;
+        color: #475569;
+    }
+    .meta-bold {
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    /* Explanatory Callout */
+    .theory-note {
+        background-color: #f1f5f9;
+        border-left: 3px solid #1e3a8a;
+        border-radius: 0 4px 4px 0;
         padding: 12px 16px;
         font-size: 0.85rem;
-        color: {theme['subtext']};
+        color: #334155;
         line-height: 1.5;
-        margin-bottom: 16px;
-    }}
+        margin-bottom: 18px;
+    }
+
+    /* Tab Headers */
+    button[data-baseweb="tab"] {
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        color: #475569 !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #1e3a8a !important;
+        border-bottom-color: #1e3a8a !important;
+    }
+
+    /* Sidebar Code Blocks */
+    [data-testid="stSidebar"] code, [data-testid="stSidebar"] pre {
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
+    }
+
+    /* Academic Buttons */
+    div[data-testid="stButton"] button {
+        border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        font-weight: 500 !important;
+        border-radius: 4px !important;
+        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out !important;
+    }
+    div[data-testid="stButton"] button:hover {
+        border-color: #1e3a8a !important;
+        background-color: #f8fafc !important;
+        color: #1e3a8a !important;
+    }
+
+    /* DataFrame Container */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+    }
 </style>
 """
-st.markdown(THEME_CSS, unsafe_allow_html=True)
+st.markdown(CONSERVATIVE_CSS, unsafe_allow_html=True)
 
 # ==============================================================================
 # Header Section
 # ==============================================================================
-st.markdown(f"""
+st.markdown("""
 <div class="journal-header">
     <div class="journal-title">X-TUBIT: In Silico Screening and Digital Annealing Platform</div>
     <div class="journal-subtitle">
         Bayesian Uncertainty Quantification and Yanagisawa 4-Term Hamiltonian Docking for Mycobacterium tuberculosis Pks13-TE
     </div>
-    <div class="journal-meta">
-        <div>Target: <span class="meta-tag">Pks13-TE (PDB ID: 5V3Y, 1.98 Å)</span></div>
-        <div>Inhibitor Series: <span class="meta-tag">TAM1–TAM17 & X20403</span></div>
-        <div>Method: <span class="meta-tag">Multi-Objective qPMHI + Digital Annealing</span></div>
-        <div>Affiliation: <span class="meta-tag">Universitas Indonesia</span></div>
+    <div class="journal-meta-bar">
+        <div>Target: <span class="meta-bold">Pks13-TE (PDB ID: 5V3Y, 1.98 Å)</span></div>
+        <div>Inhibitor Series: <span class="meta-bold">Aggarwal & Krieger Cohorts</span></div>
+        <div>Method: <span class="meta-bold">Multi-Objective qPMHI + Digital Annealing</span></div>
+        <div>Institution: <span class="meta-bold">Universitas Indonesia</span></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -185,7 +172,7 @@ conformers_dir = Path("data/processed/conformers")
 audit_file = Path("data/processed/hitl_decisions.jsonl")
 
 if not data_path.exists():
-    st.error("Processed candidates artifact not found. Please run the execution pipeline first (python scripts/run_pipeline.py).")
+    st.error("Processed candidates artifact not found. Please run the execution pipeline first: python scripts/run_pipeline.py")
     st.stop()
 
 df = pd.read_parquet(data_path)
@@ -206,45 +193,46 @@ df["status"] = df["mol_id"].apply(
     lambda m: "Reviewed" if m in reviewed_mols else ("Top Hit" if m == df.iloc[0]["mol_id"] else "Pending")
 )
 
-# Sidebar Quick Information
+# ==============================================================================
+# Sidebar Summary
+# ==============================================================================
 with st.sidebar:
+    st.markdown("### Target Specification")
+    st.markdown("**Receptor**: Pks13 Thioesterase (Pks13-TE)")
+    st.markdown("**Organism**: *Mycobacterium tuberculosis*")
+    st.markdown("**Resolution**: 1.98 Å (PDB ID: 5V3Y)")
+    st.markdown("**Active Residues**: Ser1533 / Asp1644 / Thr1597")
+    st.markdown(f"**Screened Library**: {len(df)} compounds")
     st.markdown("---")
-    st.markdown("### Target Summary")
-    st.markdown("**Receptor**: Pks13 Thioesterase")
-    st.markdown("**Organism**: *M. tuberculosis*")
-    st.markdown("**Active Site**: Ser1533 / Asp1644")
-    st.markdown(f"**Total Candidates**: {len(df)}")
-    st.markdown("---")
-    st.markdown("### Quick Commands")
+    st.markdown("### Execution CLI")
     st.code("python scripts/run_pipeline.py", language="bash")
     st.code("pytest tests/ -v", language="bash")
 
 # ==============================================================================
-# Navigation Tabs
+# Navigation Tabs (Short, crisp titles that fit without overflow)
 # ==============================================================================
 tab_pareto, tab_conformer, tab_solvers, tab_audit = st.tabs([
-    "Multi-Objective Screening & Pareto Frontier",
-    "3D Conformer & Molecular Inspection",
-    "Digital Annealing & QUBO Solvers",
-    "RMSD Validation & Human-in-the-Loop Audit"
+    "1. Screening & Pareto",
+    "2. 3D Conformer Inspection",
+    "3. Digital Annealing Solvers",
+    "4. Validation & Audit"
 ])
 
 # ==============================================================================
-# Tab 1: Multi-Objective Screening & Pareto Frontier
+# Tab 1: Screening & Pareto
 # ==============================================================================
 with tab_pareto:
     st.markdown("""
-    <div class="academic-callout">
-        <strong>Multi-Objective Pareto Frontier Formulation:</strong>
-        Candidates are evaluated simultaneously across three metrics: predicted binding affinity (&mu; in pIC<sub>50</sub>),
-        drug-likeness (QED &isin; [0, 1]), and synthetic tractability (SA<sup>-1</sup>).
-        The golden line denotes the non-dominated Pareto frontier. Points with higher &mu; and QED dominate points below and to the left.
+    <div class="theory-note">
+        <strong>Multi-Objective Pareto Selection Principle:</strong> Candidates are evaluated across three simultaneous criteria: 
+        (1) Epistemic Bayesian affinity prediction (&mu; in pIC<sub>50</sub>), (2) Quantitative Estimate of Drug-likeness (QED &isin; [0, 1]), 
+        and (3) Synthetic Accessibility (SA). The amber line denotes the non-dominated Pareto frontier.
     </div>
     """, unsafe_allow_html=True)
 
-    c_plot, c_stats = st.columns([1.4, 1.0], gap="large")
+    col_plot, col_stats = st.columns([1.35, 1.0], gap="large")
 
-    with c_plot:
+    with col_plot:
         st.markdown("##### Pareto Optimization: QED vs. Predicted Affinity")
 
         pts = df[["qed", "mu"]].values
@@ -258,7 +246,7 @@ with tab_pareto:
 
         fig = go.Figure()
 
-        # Candidates scatter
+        # Candidate scatter
         fig.add_trace(go.Scatter(
             x=df["qed"],
             y=df["mu"],
@@ -268,14 +256,14 @@ with tab_pareto:
                 type="data",
                 array=df["sigma"],
                 visible=True,
-                color="rgba(100, 116, 139, 0.4)",
+                color="rgba(71, 85, 105, 0.4)",
                 thickness=1.2,
                 width=3
             ),
             marker=dict(
                 size=8,
-                color=theme["primary"],
-                line=dict(width=1, color=theme["border"])
+                color="#1e3a8a",  # Conservative navy blue
+                line=dict(width=1, color="#0f172a")
             ),
             customdata=np.column_stack([df["mol_id"], df["qed"], df["mu"], df["sigma"], df["sa"], df["rank"]]),
             hovertemplate=(
@@ -286,49 +274,49 @@ with tab_pareto:
             )
         ))
 
-        # Pareto Frontier Curve
+        # Pareto Frontier Line (Matte amber/ochre)
         fig.add_trace(go.Scatter(
             x=df_pareto["qed"],
             y=df_pareto["mu"],
             mode="lines+markers",
             name="Pareto Frontier",
-            line=dict(color=theme["secondary"], width=2.0),
-            marker=dict(size=6, color=theme["secondary"]),
+            line=dict(color="#b45309", width=2.2),  # Matte ochre
+            marker=dict(size=6, color="#b45309"),
             hoverinfo="skip"
         ))
 
         fig.update_layout(
-            height=360,
+            height=340,
             margin=dict(l=45, r=20, t=10, b=40),
-            paper_bgcolor=theme["plotly_bg"],
-            plot_bgcolor=theme["plotly_bg"],
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(size=11, color=theme["subtext"]),
+                font=dict(size=11, color="#334155"),
                 bgcolor="rgba(0,0,0,0)"
             ),
             xaxis=dict(
                 title="Drug-Likeness (QED Score)",
-                title_font=dict(size=11, color=theme["subtext"]),
-                tickfont=dict(size=10, color=theme["axis_text"]),
-                gridcolor=theme["grid"],
-                zerolinecolor=theme["border"]
+                title_font=dict(size=11, color="#334155"),
+                tickfont=dict(size=10, color="#475569"),
+                gridcolor="#f1f5f9",
+                zerolinecolor="#cbd5e1"
             ),
             yaxis=dict(
                 title="Predicted Affinity μ (pIC50)",
-                title_font=dict(size=11, color=theme["subtext"]),
-                tickfont=dict(size=10, color=theme["axis_text"]),
-                gridcolor=theme["grid"],
-                zerolinecolor=theme["border"]
+                title_font=dict(size=11, color="#334155"),
+                tickfont=dict(size=10, color="#475569"),
+                gridcolor="#f1f5f9",
+                zerolinecolor="#cbd5e1"
             )
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    with c_stats:
+    with col_stats:
         st.markdown("##### Candidate Metric Highlights")
         lead = df.iloc[0]
 
@@ -343,15 +331,15 @@ with tab_pareto:
             st.metric("Experimental pIC50", f"{lead.get('pIC50', 0.0):.2f}")
 
     st.markdown("##### Full Candidate Ranking Table")
-    filter_query = st.text_input("Filter candidate ID", "", placeholder="Search candidate ID...", label_visibility="collapsed")
-    df_filtered = df[df["mol_id"].str.contains(filter_query, case=False)] if filter_query else df
+    filter_q = st.text_input("Filter candidate ID", "", placeholder="Search candidate ID...", label_visibility="collapsed")
+    df_f = df[df["mol_id"].str.contains(filter_q, case=False)] if filter_q else df
 
-    cols_table = ["rank", "mol_id", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "pIC50", "status"]
-    df_disp = df_filtered[[c for c in cols_table if c in df_filtered.columns]].copy()
-    df_disp.columns = ["Rank", "Candidate ID", "qPMHI", "Affinity (μ)", "Uncertainty (σ)", "QED", "SA", "MW (Da)", "LogP", "Exp. pIC50", "Status"]
+    table_cols = ["rank", "mol_id", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "pIC50", "status"]
+    df_tbl = df_f[[c for c in table_cols if c in df_f.columns]].copy()
+    df_tbl.columns = ["Rank", "Candidate ID", "qPMHI", "Affinity (μ)", "Uncertainty (σ)", "QED", "SA", "MW (Da)", "LogP", "Exp. pIC50", "Status"]
 
     st.dataframe(
-        df_disp.style.format({
+        df_tbl.style.format({
             "qPMHI": "{:.4f}",
             "Affinity (μ)": "{:.2f}",
             "Uncertainty (σ)": "{:.2f}",
@@ -366,54 +354,48 @@ with tab_pareto:
     )
 
 # ==============================================================================
-# Tab 2: 3D Conformer & Molecular Inspection
+# Tab 2: 3D Conformer Inspection
 # ==============================================================================
 with tab_conformer:
     st.markdown("""
-    <div class="academic-callout">
-        <strong>Conformer Generation & Coordinate Validation:</strong> 3D coordinates represent lowest-energy
-        gas-phase states optimized with the MMFF94 force field starting from ETKDGv3 distance-geometry distance matrices.
+    <div class="theory-note">
+        <strong>Conformer Generation & Coordinate Validation:</strong> 3D atomic coordinates are generated via RDKit ETKDGv3 
+        distance geometry followed by MMFF94 force-field geometry optimization. Conformers represent lowest-energy 
+        gas-phase states utilized for pocket placement.
     </div>
     """, unsafe_allow_html=True)
 
-    c_3d, c_desc = st.columns([1.3, 1.0], gap="large")
+    col_3d, col_desc = st.columns([1.35, 1.0], gap="large")
 
-    with c_3d:
+    with col_3d:
         st.markdown("##### 3D Molecular Conformer Viewer")
-        ctrl1, ctrl2, ctrl3 = st.columns([1.4, 1.2, 1.0])
-        with ctrl1:
-            active_candidate = st.selectbox("Select Molecule", options=df["mol_id"].tolist(), index=0)
-        with ctrl2:
-            render_style = st.selectbox("Representation", options=["Sticks", "Ball & Stick", "Surface (VDW)", "Wireframe"])
-        with ctrl3:
-            spin_toggle = st.checkbox("Rotate View", value=False)
+        c1, c2, c3 = st.columns([1.4, 1.2, 1.0])
+        with c1:
+            sel_mol = st.selectbox("Active Molecule", options=df["mol_id"].tolist(), index=0)
+        with c2:
+            mol_rep = st.selectbox("Style", options=["Sticks", "Ball and Stick", "Van der Waals Surface", "Wireframe"])
+        with c3:
+            spin_on = st.checkbox("Auto-Spin", value=False)
 
-        sdf_path = conformers_dir / f"{active_candidate}.sdf"
-        sdf_text = sdf_path.read_text(encoding="utf-8") if sdf_path.exists() else ""
-        clean_sdf = json.dumps(sdf_text)
+        sdf_path = conformers_dir / f"{sel_mol}.sdf"
+        sdf_data = sdf_path.read_text(encoding="utf-8") if sdf_path.exists() else ""
+        clean_sdf_json = json.dumps(sdf_data)
 
-        # 3Dmol style rules tailored to light/dark themes
-        if is_dark:
-            carbon_color = "default"
-            surface_color = "#64748b"
-        else:
-            carbon_color = "default"
-            surface_color = "#94a3b8"
+        # Standard crystallographic CPK colors on clean white background
+        if mol_rep == "Sticks":
+            style_code = 'viewer.setStyle({}, {stick: {radius: 0.20, colorscheme: "default"}});'
+            surface_code = ""
+        elif mol_rep == "Ball and Stick":
+            style_code = 'viewer.setStyle({}, {sphere: {scale: 0.28}, stick: {radius: 0.15, colorscheme: "default"}});'
+            surface_code = ""
+        elif mol_rep == "Van der Waals Surface":
+            style_code = 'viewer.setStyle({}, {stick: {radius: 0.15}});'
+            surface_code = 'viewer.addSurface($3Dmol.SurfaceType.VDW, {opacity: 0.65, color: "#94a3b8"});'
+        elif mol_rep == "Wireframe":
+            style_code = 'viewer.setStyle({}, {line: {linewidth: 2.0}});'
+            surface_code = ""
 
-        if render_style == "Sticks":
-            style_js = f'viewer.setStyle({{}}, {{stick: {{radius: 0.20, colorscheme: "{carbon_color}"}}}});'
-            surface_js = ""
-        elif render_style == "Ball & Stick":
-            style_js = f'viewer.setStyle({{}}, {{sphere: {{scale: 0.30}}, stick: {{radius: 0.15, colorscheme: "{carbon_color}"}}}});'
-            surface_js = ""
-        elif render_style == "Surface (VDW)":
-            style_js = 'viewer.setStyle({}, {stick: {radius: 0.15}});'
-            surface_js = f'viewer.addSurface($3Dmol.SurfaceType.VDW, {{opacity: 0.65, color: "{surface_color}"}});'
-        elif render_style == "Wireframe":
-            style_js = 'viewer.setStyle({}, {line: {linewidth: 2.0}});'
-            surface_js = ""
-
-        spin_js = "viewer.spin(true, 1.0);" if spin_toggle else "viewer.spin(false);"
+        spin_call = "viewer.spin(true, 1.0);" if spin_on else "viewer.spin(false);"
 
         html_3d = f"""
         <!DOCTYPE html>
@@ -421,46 +403,46 @@ with tab_conformer:
         <head>
             <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"></script>
             <style>
-                body {{ margin: 0; padding: 0; background-color: {theme['viewer_bg']}; overflow: hidden; }}
-                #canvas {{
+                body {{ margin: 0; padding: 0; background-color: #ffffff; overflow: hidden; }}
+                #viewport {{
                     width: 100%;
                     height: 440px;
-                    border: 1px solid {theme['border']};
+                    border: 1px solid #cbd5e1;
                     border-radius: 6px;
-                    background-color: {theme['viewer_bg']};
+                    background-color: #ffffff;
                     position: relative;
                 }}
-                .hud {{
+                .hud-tag {{
                     position: absolute;
                     bottom: 10px;
                     left: 10px;
                     font-family: monospace;
                     font-size: 11px;
-                    color: {theme['subtext']};
-                    background: {theme['card_bg']};
+                    color: #475569;
+                    background: #f8fafc;
                     padding: 4px 8px;
                     border-radius: 4px;
-                    border: 1px solid {theme['border']};
+                    border: 1px solid #cbd5e1;
                 }}
             </style>
         </head>
         <body>
-            <div id="canvas">
-                <div class="hud">{active_candidate} | MMFF94 Conformer</div>
+            <div id="viewport">
+                <div class="hud-tag">{sel_mol} | MMFF94 Conformer</div>
             </div>
             <script>
-                let elem = document.getElementById("canvas");
-                let viewer = $3Dmol.createViewer(elem, {{ backgroundColor: "{theme['viewer_bg']}" }});
-                let sdfData = {clean_sdf};
-                if (sdfData && sdfData.length > 0) {{
-                    viewer.addModel(sdfData, "sdf");
-                    {style_js}
-                    {surface_js}
+                let container = document.getElementById("viewport");
+                let viewer = $3Dmol.createViewer(container, {{ backgroundColor: "#ffffff" }});
+                let sdf = {clean_sdf_json};
+                if (sdf && sdf.length > 0) {{
+                    viewer.addModel(sdf, "sdf");
+                    {style_code}
+                    {surface_code}
                     viewer.zoomTo();
                     viewer.render();
-                    {spin_js}
+                    {spin_call}
                 }} else {{
-                    viewer.addLabel("Conformer not found", {{fontSize: 13, fontColor: '#ef4444'}});
+                    viewer.addLabel("Conformer not found", {{fontSize: 13, fontColor: '#dc2626'}});
                 }}
             </script>
         </body>
@@ -468,9 +450,9 @@ with tab_conformer:
         """
         components.html(html_3d, height=450)
 
-    with c_desc:
-        st.markdown("##### Chemical Properties & Descriptors")
-        mol_row = df[df["mol_id"] == active_candidate].iloc[0]
+    with col_desc:
+        st.markdown("##### Molecular Descriptors")
+        mol_row = df[df["mol_id"] == sel_mol].iloc[0]
 
         d1, d2 = st.columns(2)
         with d1:
@@ -484,18 +466,18 @@ with tab_conformer:
             st.metric("QED Drug-Likeness", f"{mol_row.get('qed', 0.0):.3f}")
             st.metric("SA Accessibility", f"{mol_row.get('sa', 0.0):.2f}")
 
-        st.markdown("**Canonical SMILES:**")
+        st.markdown("**Canonical SMILES Representation:**")
         st.code(str(mol_row.get("smiles_can", "")), language="text")
 
-        st.markdown("**Murcko Scaffold Core:**")
+        st.markdown("**Bemis-Murcko Scaffold Core:**")
         st.code(str(mol_row.get("scaffold", "")), language="text")
 
 # ==============================================================================
-# Tab 3: Digital Annealing & QUBO Solvers
+# Tab 3: Digital Annealing Solvers
 # ==============================================================================
 with tab_solvers:
     st.markdown("""
-    <div class="academic-callout">
+    <div class="theory-note">
         <strong>Yanagisawa 4-Term Docking Hamiltonian Formulation:</strong>
         Flexible ligand placement in the Pks13 catalytic pocket is structured as a Quadratic Unconstrained Binary Optimization (QUBO) problem:
         <br>
@@ -511,23 +493,26 @@ with tab_solvers:
 
         cs1, cs2 = st.columns([1.1, 1.1], gap="large")
 
+        # Conservative bar colors: Navy, Forest Green, Slate Gray, Burnt Amber
+        conservative_bars = ["#1e3a8a", "#047857", "#475569", "#b45309"]
+
         with cs1:
             st.markdown("##### Minimum Ground-State Energy (kcal/mol)")
             fig_e = go.Figure()
             fig_e.add_trace(go.Bar(
                 x=df_solvers["solver"],
                 y=df_solvers["energy"],
-                marker_color=theme["bar_colors"],
+                marker_color=conservative_bars,
                 text=[f"{e:.2f}" for e in df_solvers["energy"]],
                 textposition="auto"
             ))
             fig_e.update_layout(
                 height=260,
                 margin=dict(l=40, r=20, t=10, b=40),
-                paper_bgcolor=theme["plotly_bg"],
-                plot_bgcolor=theme["plotly_bg"],
-                yaxis=dict(title="Energy (kcal/mol)", gridcolor=theme["grid"], tickfont=dict(color=theme["axis_text"])),
-                xaxis=dict(tickfont=dict(color=theme["text"]))
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                yaxis=dict(title="Energy (kcal/mol)", gridcolor="#f1f5f9", tickfont=dict(color="#334155")),
+                xaxis=dict(tickfont=dict(color="#334155"))
             )
             st.plotly_chart(fig_e, use_container_width=True, config={"displayModeBar": False})
 
@@ -537,17 +522,17 @@ with tab_solvers:
             fig_t.add_trace(go.Bar(
                 x=df_solvers["solver"],
                 y=df_solvers["tts_99"],
-                marker_color=theme["bar_colors"],
+                marker_color=conservative_bars,
                 text=[f"{t:.4f} s" for t in df_solvers["tts_99"]],
                 textposition="auto"
             ))
             fig_t.update_layout(
                 height=260,
                 margin=dict(l=40, r=20, t=10, b=40),
-                paper_bgcolor=theme["plotly_bg"],
-                plot_bgcolor=theme["plotly_bg"],
-                yaxis=dict(title="TTS99 (s)", gridcolor=theme["grid"], type="log", tickfont=dict(color=theme["axis_text"])),
-                xaxis=dict(tickfont=dict(color=theme["text"]))
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                yaxis=dict(title="TTS99 (s)", gridcolor="#f1f5f9", type="log", tickfont=dict(color="#334155")),
+                xaxis=dict(tickfont=dict(color="#334155"))
             )
             st.plotly_chart(fig_t, use_container_width=True, config={"displayModeBar": False})
 
@@ -567,11 +552,11 @@ with tab_solvers:
         st.info("Execute python scripts/run_pipeline.py to populate digital annealing solver benchmarks.")
 
 # ==============================================================================
-# Tab 4: RMSD Validation & Human-in-the-Loop Audit
+# Tab 4: Validation & Audit
 # ==============================================================================
 with tab_audit:
     st.markdown("""
-    <div class="academic-callout">
+    <div class="theory-note">
         <strong>Crystallographic Validation:</strong> Ground-state binary solutions are decoded back into 3D Cartesian space 
         and aligned against the crystallographic pose of TAM16 (ligand 8EZ) in PDB 5V3Y. An RMSD &lt; 2.0 Å validates 
         reconstituted docking viability.
