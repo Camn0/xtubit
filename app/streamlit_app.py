@@ -33,6 +33,7 @@ st.set_page_config(
 # Mochi Aesthetic Design System
 # Soft, pillowy, warm pastel/earthy tones (cream, matcha, kinako, soft slate).
 # Metric deltas: Soft Matcha (up) and Soft Azuki/Chestnut (down). Zero neon.
+# No text overlaps, no iframe scrollbars, robust responsive layouts.
 # ==============================================================================
 MOCHI_CSS = """
 <style>
@@ -52,35 +53,45 @@ MOCHI_CSS = """
         background-color: #ffffff;
         border: 1px solid #e8e4dc;
         border-radius: 12px;
-        padding: 12px 16px;
+        padding: 10px 14px;
+        min-height: 82px;
         box-shadow: 0 2px 5px rgba(60, 50, 40, 0.02);
     }
     [data-testid="stMetricValue"] {
         color: #292524 !important;
         font-weight: 700 !important;
-        font-size: 1.22rem !important;
+        font-size: 1.18rem !important;
+        line-height: 1.2 !important;
     }
     [data-testid="stMetricLabel"] {
         color: #78716c !important;
         font-weight: 600 !important;
-        font-size: 0.75rem !important;
+        font-size: 0.74rem !important;
         text-transform: uppercase;
         letter-spacing: 0.04em;
+        margin-bottom: 2px !important;
     }
 
     /* Mochi Metric Deltas: Soft Matcha (up) and Soft Azuki (down), never neon */
     [data-testid="stMetricDelta"] {
         background-color: #f4f1eb !important;
-        border-radius: 8px !important;
-        padding: 2px 8px !important;
+        border-radius: 6px !important;
+        padding: 2px 7px !important;
         font-weight: 600 !important;
+        font-size: 0.74rem !important;
         display: inline-flex !important;
         align-items: center !important;
         margin-top: 4px !important;
+        max-width: 100% !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     /* Up delta (Soft Matcha) */
     [data-testid="stMetricDelta"] svg {
         fill: #5a7365 !important;
+        width: 13px !important;
+        height: 13px !important;
     }
     [data-testid="stMetricDelta"] div {
         color: #5a7365 !important;
@@ -101,14 +112,14 @@ MOCHI_CSS = """
     .mochi-header {
         background-color: #ffffff;
         border: 1px solid #e8e4dc;
-        border-radius: 14px;
-        padding: 14px 20px;
-        margin-bottom: 16px;
+        border-radius: 12px;
+        padding: 12px 18px;
+        margin-bottom: 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 10px;
         box-shadow: 0 2px 6px rgba(60, 50, 40, 0.02);
     }
     .mochi-title-wrap {
@@ -116,14 +127,15 @@ MOCHI_CSS = """
         flex-direction: column;
     }
     .mochi-title {
-        font-size: 1.15rem;
+        font-size: 1.12rem;
         font-weight: 700;
         color: #292524;
         letter-spacing: -0.01em;
     }
     .mochi-subtitle {
-        font-size: 0.82rem;
+        font-size: 0.80rem;
         color: #78716c;
+        margin-top: 2px;
     }
     .mochi-badge-row {
         display: flex;
@@ -134,9 +146,9 @@ MOCHI_CSS = """
     .mochi-badge {
         background-color: #f4f1eb;
         border: 1px solid #e2ddd4;
-        border-radius: 8px;
-        padding: 4px 10px;
-        font-size: 0.78rem;
+        border-radius: 6px;
+        padding: 4px 9px;
+        font-size: 0.76rem;
         font-weight: 600;
         color: #44403c;
     }
@@ -144,7 +156,7 @@ MOCHI_CSS = """
     /* Soft Tab Navigation */
     button[data-baseweb="tab"] {
         font-weight: 600 !important;
-        font-size: 0.85rem !important;
+        font-size: 0.84rem !important;
         color: #78716c !important;
         padding: 8px 14px !important;
         border-radius: 8px 8px 0 0 !important;
@@ -161,9 +173,9 @@ MOCHI_CSS = """
         background-color: #ffffff !important;
         color: #292524 !important;
         font-weight: 600 !important;
-        border-radius: 10px !important;
-        padding: 0.45rem 0.9rem !important;
-        font-size: 0.84rem !important;
+        border-radius: 8px !important;
+        padding: 0.40rem 0.85rem !important;
+        font-size: 0.82rem !important;
         box-shadow: 0 1px 3px rgba(60, 50, 40, 0.02) !important;
         transition: all 0.15s ease-in-out !important;
     }
@@ -176,7 +188,7 @@ MOCHI_CSS = """
     /* Soft Container Borders */
     div[data-testid="stDataFrame"] {
         border: 1px solid #e8e4dc;
-        border-radius: 12px;
+        border-radius: 10px;
         overflow: hidden;
     }
 
@@ -189,10 +201,10 @@ MOCHI_CSS = """
     /* Pill Badges */
     .pill-badge {
         display: inline-block;
-        padding: 3px 8px;
+        padding: 2px 7px;
         margin: 2px;
         border-radius: 6px;
-        font-size: 0.76rem;
+        font-size: 0.74rem;
         font-weight: 600;
     }
     .pill-matcha {
@@ -221,8 +233,8 @@ MOCHI_CSS = """
         background-color: #ffffff;
         border: 1px solid #e8e4dc;
         border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 12px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
         box-shadow: 0 2px 5px rgba(60, 50, 40, 0.02);
     }
 </style>
@@ -230,10 +242,10 @@ MOCHI_CSS = """
 st.markdown(MOCHI_CSS, unsafe_allow_html=True)
 
 # ==============================================================================
-# Helper Functions: Chemical Calculations & Conformer Engine
+# Helper Functions: Chemical Calculations, Vector SVG, and Safe HTML Embeds
 # ==============================================================================
-def generate_2d_svg(smiles: str, width: int = 280, height: int = 160) -> str:
-    """Generate soft 2D skeletal formula vector SVG via RDKit."""
+def generate_2d_svg(smiles: str, width: int = 260, height: int = 150) -> str:
+    """Generate soft 2D skeletal formula vector SVG via RDKit with clean transparent canvas."""
     try:
         from rdkit import Chem
         from rdkit.Chem.Draw import rdMolDraw2D
@@ -243,13 +255,59 @@ def generate_2d_svg(smiles: str, width: int = 280, height: int = 160) -> str:
         drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
         opts = drawer.drawOptions()
         opts.clearBackground = True
-        opts.bondLineWidth = 1.8
+        opts.bondLineWidth = 1.7
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
         svg = drawer.GetDrawingText()
         return svg.replace("<?xml version='1.0' encoding='iso-8859-1'?>\n", "")
     except Exception:
         return ""
+
+def render_svg_html(svg_content: str, height: int = 160) -> str:
+    """Wrap SVG in responsive container without any iframe scrollbar."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            html, body {{
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background-color: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                width: 100%;
+            }}
+            .svg-box {{
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #ffffff;
+                border: 1px solid #e8e4dc;
+                border-radius: 10px;
+                box-sizing: border-box;
+                padding: 4px;
+            }}
+            svg {{
+                max-width: 95%;
+                max-height: 95%;
+                height: auto;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="svg-box">
+            {svg_content}
+        </div>
+    </body>
+    </html>
+    """
 
 def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict[str, Any]]:
     """Compute complete physicochemical profile, conformer block, and surrogate affinity."""
@@ -312,7 +370,7 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
         return None
 
 def parse_batch_smiles_or_csv(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
-    """Parse batch CSV, SDF, or multi-line SMILES file into evaluated dictionary list."""
+    """Parse batch CSV or multi-line SMILES file into evaluated dictionary list."""
     results = []
     try:
         content_str = file_bytes.decode("utf-8", errors="ignore")
@@ -328,7 +386,6 @@ def parse_batch_smiles_or_csv(file_bytes: bytes, filename: str) -> List[Dict[str
                     if rec:
                         results.append(rec)
         else:
-            # Multi-line SMILES
             lines = [line.strip() for line in content_str.splitlines() if line.strip()]
             for idx, line in enumerate(lines):
                 parts = line.split()
@@ -356,10 +413,17 @@ conformers_dir = Path("data/processed/conformers")
 audit_file = Path("data/processed/hitl_decisions.jsonl")
 
 # ==============================================================================
-# Session State Initialization
+# Robust Session State Initialization & Sidebar Callbacks
+# Fixes the 2-click issue by binding Streamlit widget keys directly to state.
 # ==============================================================================
-if "library_source" not in st.session_state:
-    st.session_state["library_source"] = "Aggarwal & Krieger Co-Crystals (14 Compounds)"
+DATASET_OPTIONS = [
+    "Aggarwal & Krieger Co-Crystals (14 Compounds)",
+    "Expanded Virtual Library (94 Analogues)",
+    "Upload Custom Batch (CSV / SMILES)"
+]
+
+if "sb_dataset" not in st.session_state:
+    st.session_state["sb_dataset"] = DATASET_OPTIONS[0]
 
 if "uploaded_molecules" not in st.session_state:
     st.session_state["uploaded_molecules"] = []
@@ -367,26 +431,38 @@ if "uploaded_molecules" not in st.session_state:
 if "custom_analogue" not in st.session_state:
     st.session_state["custom_analogue"] = None
 
+def on_dataset_change():
+    """Callback fired immediately when dataset selection changes."""
+    # Invalidate active mol selection so it snaps cleanly to the first item of the new library
+    st.session_state.pop("sb_active_mol", None)
+
+def reset_filters():
+    """Reset all screening filters to default."""
+    st.session_state["f_smarts"] = "All Scaffolds"
+    st.session_state["f_min_qed"] = 0.40
+    st.session_state["f_max_sa"] = 6.0
+    st.session_state["f_mw"] = (150, 600)
+    st.session_state["f_logp"] = (-1.0, 6.5)
+    st.session_state["f_lipinski"] = False
+    st.session_state["f_search"] = ""
+
 # ==============================================================================
 # Sidebar: Library Selector & High-Throughput Ingestion
 # ==============================================================================
 with st.sidebar:
     st.markdown("### Molecular Library Source")
-    lib_choice = st.selectbox(
+    st.selectbox(
         "Active Screening Dataset",
-        options=[
-            "Aggarwal & Krieger Co-Crystals (14 Compounds)",
-            "Expanded Virtual Library (94 Analogues)",
-            "Upload Custom Batch (CSV / SMILES)"
-        ],
-        index=0 if st.session_state["library_source"].startswith("Aggarwal") else (1 if st.session_state["library_source"].startswith("Expanded") else 2)
+        options=DATASET_OPTIONS,
+        key="sb_dataset",
+        on_change=on_dataset_change
     )
-    st.session_state["library_source"] = lib_choice
+    current_dataset = st.session_state["sb_dataset"]
 
-    # Load appropriate dataframe based on selection
-    if lib_choice.startswith("Aggarwal"):
+    # Load appropriate dataframe
+    if current_dataset.startswith("Aggarwal"):
         df_active = pd.read_parquet(base_data_path)
-    elif lib_choice.startswith("Expanded"):
+    elif current_dataset.startswith("Expanded"):
         if expanded_lib_path.exists():
             df_active = pd.read_parquet(expanded_lib_path)
         else:
@@ -405,10 +481,10 @@ with st.sidebar:
         if st.session_state["uploaded_molecules"]:
             df_active = pd.DataFrame(st.session_state["uploaded_molecules"])
         else:
-            st.info("Upload a dataset or use default library.")
+            st.info("Upload a dataset or browse default library.")
             df_active = pd.read_parquet(base_data_path)
 
-    # Ensure required columns
+    # Ensure required columns exist
     if "rank" not in df_active.columns:
         df_active["rank"] = range(1, len(df_active) + 1)
     if "mu" not in df_active.columns:
@@ -436,17 +512,20 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### Active Candidate")
     mol_list = df_active["mol_id"].tolist()
-    if "active_mol_id" not in st.session_state or st.session_state["active_mol_id"] not in mol_list:
-        st.session_state["active_mol_id"] = str(df_active.iloc[0]["mol_id"])
-    
-    curr_idx = mol_list.index(st.session_state["active_mol_id"]) if st.session_state["active_mol_id"] in mol_list else 0
-    selected_mol = st.selectbox("Inspect Molecule", options=mol_list, index=curr_idx)
-    st.session_state["active_mol_id"] = selected_mol
-    active_row = df_active[df_active["mol_id"] == st.session_state["active_mol_id"]].iloc[0]
+    if "sb_active_mol" not in st.session_state or st.session_state["sb_active_mol"] not in mol_list:
+        st.session_state["sb_active_mol"] = mol_list[0]
+
+    st.selectbox(
+        "Inspect Molecule",
+        options=mol_list,
+        key="sb_active_mol"
+    )
+    active_mol_id = st.session_state["sb_active_mol"]
+    active_row = df_active[df_active["mol_id"] == active_mol_id].iloc[0]
 
     st.metric("Screening Rank", f"#{active_row['rank']}")
-    st.metric("Predicted Affinity", f"{active_row['mu']:.2f} pIC50", f"±{active_row['sigma']:.2f}")
-    st.metric("Drug-Likeness (QED)", f"{active_row['qed']:.3f}")
+    st.metric("Predicted Affinity", f"{active_row['mu']:.2f} pIC50", delta=f"±{active_row['sigma']:.2f} σ")
+    st.metric("Drug-Likeness (QED)", f"{active_row['qed']:.3f}", help="Score 0.0 to 1.0 (Higher is more drug-like)")
 
     st.markdown("---")
     csv_bytes = df_active.to_csv(index=False).encode('utf-8')
@@ -469,7 +548,7 @@ st.markdown(f"""
     </div>
     <div class="mochi-badge-row">
         <div class="mochi-badge">Dataset: {len(df_active)} Compounds</div>
-        <div class="mochi-badge">Active: {st.session_state['active_mol_id']} (Rank #{active_row['rank']})</div>
+        <div class="mochi-badge">Active: {active_mol_id} (Rank #{active_row['rank']})</div>
         <div class="mochi-badge">Status: {active_row['status']}</div>
     </div>
 </div>
@@ -490,14 +569,30 @@ tab_screening, tab_compare, tab_conformer, tab_solvers, tab_audit = st.tabs([
 # Tab 1: Multi-Dimensional Discovery & Filtering Workbench (LiveDesign Style)
 # ==============================================================================
 with tab_screening:
-    # Top view mode selector
-    s_col1, s_col2 = st.columns([1.5, 1.0])
-    with s_col1:
+    # Top view mode selector and Quick Search Toolbar
+    tb_c1, tb_c2, tb_c3 = st.columns([1.6, 1.1, 0.7], gap="medium")
+    with tb_c1:
         view_mode = st.radio(
             "Visualization Mode",
             ["Pareto Frontier Plot", "Card Gallery (Tiles)", "Interactive Data Table"],
             horizontal=True
         )
+    with tb_c2:
+        sort_by = st.selectbox(
+            "Sort Order",
+            [
+                "Rank (Best First)",
+                "Predicted Affinity (High to Low)",
+                "Drug-Likeness QED (High to Low)",
+                "Synthetic Ease (Easiest First)",
+                "Molecular Weight (Low to High)"
+            ]
+        )
+    with tb_c3:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        if st.button("Reset Filters", use_container_width=True):
+            reset_filters()
+            st.rerun()
 
     # Substructure & Advanced Property Filters
     with st.expander("Substructure & Advanced Multi-Property Filters", expanded=False):
@@ -513,25 +608,26 @@ with tab_screening:
                     "Ester Group (C(=O)O)",
                     "Morpholine Ring (N1CCOCC1)",
                     "Custom SMARTS Input"
-                ]
+                ],
+                key="f_smarts" if "f_smarts" in st.session_state else None
             )
             custom_smarts = ""
             if smarts_preset == "Custom SMARTS Input":
                 custom_smarts = st.text_input("Enter SMARTS query", "c1ccccc1")
 
         with f_sub2:
-            min_qed_val = st.slider("Min QED (Drug-Likeness)", 0.0, 1.0, 0.40, 0.05)
-            max_sa_val = st.slider("Max Synthetic Difficulty (SA)", 1.0, 10.0, 6.0, 0.5)
+            min_qed_val = st.slider("Min QED (Drug-Likeness)", 0.0, 1.0, 0.40, 0.05, key="f_min_qed" if "f_min_qed" in st.session_state else None)
+            max_sa_val = st.slider("Max Synthetic Difficulty (SA)", 1.0, 10.0, 6.0, 0.5, key="f_max_sa" if "f_max_sa" in st.session_state else None)
 
         with f_sub3:
-            mw_range = st.slider("Molecular Weight (Da)", 150, 650, (150, 600), 25)
-            logp_range = st.slider("Calculated LogP", -1.0, 7.0, (-1.0, 6.5), 0.5)
+            mw_range = st.slider("Molecular Weight (Da)", 150, 650, (150, 600), 25, key="f_mw" if "f_mw" in st.session_state else None)
+            logp_range = st.slider("Calculated LogP", -1.0, 7.0, (-1.0, 6.5), 0.5, key="f_logp" if "f_logp" in st.session_state else None)
 
         rule_col1, rule_col2 = st.columns(2)
         with rule_col1:
-            lipinski_only = st.checkbox("Lipinski Rule of 5 Compliant Only (0 Violations)", value=False)
+            lipinski_only = st.checkbox("Lipinski Rule of 5 Compliant Only (0 Violations)", value=False, key="f_lipinski" if "f_lipinski" in st.session_state else None)
         with rule_col2:
-            search_id = st.text_input("Search Molecule ID", "", placeholder="Filter by ID...")
+            search_id = st.text_input("Search Molecule ID", "", placeholder="Filter by ID...", key="f_search" if "f_search" in st.session_state else None)
 
     # Apply Substructure and Property Filtering
     from rdkit import Chem
@@ -574,7 +670,8 @@ with tab_screening:
     if search_id:
         df_filtered = df_filtered[df_filtered["mol_id"].str.contains(search_id, case=False)]
 
-    st.markdown(f"**Filter Pass Rate**: Displaying **{len(df_filtered)}** of {len(df_active)} candidates ({len(df_filtered)/len(df_active)*100:.1f}%)")
+    pass_pct = (len(df_filtered) / len(df_active) * 100) if len(df_active) > 0 else 0
+    st.markdown(f"**Filter Pass Rate**: Displaying **{len(df_filtered)}** of {len(df_active)} candidates ({pass_pct:.1f}%)")
 
     # Custom Multi-Objective Prioritization Sliders
     with st.expander("Custom Multi-Objective Weighted Prioritization Engine", expanded=False):
@@ -592,20 +689,39 @@ with tab_screening:
         else:
             w_mu_n, w_qed_n, w_sa_n = 0.333, 0.333, 0.333
 
-        mu_norm = (df_filtered["mu"] - df_filtered["mu"].min()) / (df_filtered["mu"].max() - df_filtered["mu"].min() + 1e-6)
-        sa_norm = (10.0 - df_filtered["sa"]) / 9.0
-        df_filtered["custom_score"] = w_mu_n * mu_norm + w_qed_n * df_filtered["qed"] + w_sa_n * sa_norm
-        df_filtered["custom_rank"] = df_filtered["custom_score"].rank(ascending=False, method="min").astype(int)
+        if not df_filtered.empty:
+            mu_span = (df_filtered["mu"].max() - df_filtered["mu"].min())
+            mu_norm = (df_filtered["mu"] - df_filtered["mu"].min()) / (mu_span + 1e-6) if mu_span > 0 else 1.0
+            sa_norm = (10.0 - df_filtered["sa"]) / 9.0
+            df_filtered["custom_score"] = w_mu_n * mu_norm + w_qed_n * df_filtered["qed"] + w_sa_n * sa_norm
+            df_filtered["custom_rank"] = df_filtered["custom_score"].rank(ascending=False, method="min").astype(int)
+        else:
+            df_filtered["custom_score"] = []
+            df_filtered["custom_rank"] = []
 
-    # 1. Pareto Frontier Plot View
-    if view_mode == "Pareto Frontier Plot":
-        p_col1, p_col2 = st.columns([1.4, 1.0], gap="large")
-        with p_col1:
-            st.markdown("##### Multi-Objective Frontier: QED vs. Predicted Affinity")
-            fig_pareto = go.Figure()
+    # Apply sorting
+    if not df_filtered.empty:
+        if sort_by == "Rank (Best First)":
+            df_filtered = df_filtered.sort_values(by="rank")
+        elif sort_by == "Predicted Affinity (High to Low)":
+            df_filtered = df_filtered.sort_values(by="mu", ascending=False)
+        elif sort_by == "Drug-Likeness QED (High to Low)":
+            df_filtered = df_filtered.sort_values(by="qed", ascending=False)
+        elif sort_by == "Synthetic Ease (Easiest First)":
+            df_filtered = df_filtered.sort_values(by="sa", ascending=True)
+        elif sort_by == "Molecular Weight (Low to High)":
+            df_filtered = df_filtered.sort_values(by="mw", ascending=True)
 
-            # Non-dominated front calculation
-            if not df_filtered.empty:
+    if df_filtered.empty:
+        st.info("No molecules match the current filter criteria. Adjust the property ranges or SMARTS query to expand results.")
+    else:
+        # 1. Pareto Frontier Plot View
+        if view_mode == "Pareto Frontier Plot":
+            p_col1, p_col2 = st.columns([1.4, 1.0], gap="large")
+            with p_col1:
+                st.markdown("##### Multi-Objective Frontier: QED vs. Predicted Affinity")
+                fig_pareto = go.Figure()
+
                 pts = df_filtered[["qed", "mu"]].values
                 pareto_mask = np.ones(len(pts), dtype=bool)
                 for i in range(len(pts)):
@@ -637,8 +753,8 @@ with tab_screening:
                 ))
 
                 # Highlight active molecule
-                if st.session_state["active_mol_id"] in df_filtered["mol_id"].values:
-                    sel_row = df_filtered[df_filtered["mol_id"] == st.session_state["active_mol_id"]].iloc[0]
+                if active_mol_id in df_filtered["mol_id"].values:
+                    sel_row = df_filtered[df_filtered["mol_id"] == active_mol_id].iloc[0]
                     fig_pareto.add_trace(go.Scatter(
                         x=[sel_row["qed"]],
                         y=[sel_row["mu"]],
@@ -647,113 +763,113 @@ with tab_screening:
                         marker=dict(size=13, color="#4a6b5d", symbol="diamond", line=dict(width=1.5, color="#292524"))
                     ))
 
-            fig_pareto.update_layout(
-                height=330,
-                margin=dict(l=45, r=20, t=10, b=40),
-                paper_bgcolor="#ffffff",
-                plot_bgcolor="#ffffff",
-                legend=dict(orientation="h", y=1.02, x=1, xanchor="right", font=dict(color="#78716c")),
-                xaxis=dict(title="Drug-Likeness (QED)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
-                yaxis=dict(title="Predicted Affinity μ (pIC50)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
-            )
-            st.plotly_chart(fig_pareto, use_container_width=True, config={"displayModeBar": False})
+                fig_pareto.update_layout(
+                    height=340,
+                    margin=dict(l=48, r=20, t=25, b=40),
+                    paper_bgcolor="#ffffff",
+                    plot_bgcolor="#ffffff",
+                    legend=dict(orientation="h", y=1.09, x=1, xanchor="right", font=dict(color="#78716c", size=11)),
+                    xaxis=dict(title="Drug-Likeness (QED)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
+                    yaxis=dict(title="Predicted Affinity μ (pIC50)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
+                )
+                st.plotly_chart(fig_pareto, use_container_width=True, config={"displayModeBar": False})
 
-        with p_col2:
-            st.markdown(f"##### Selected Candidate: **{active_row['mol_id']}**")
-            lead_row = df_active.iloc[0]
-            delta_mu = active_row["mu"] - lead_row["mu"]
-            delta_str = f"{delta_mu:+.2f} vs Lead" if active_row["mol_id"] != lead_row["mol_id"] else "Benchmark Lead"
+            with p_col2:
+                st.markdown(f"##### Selected Candidate: **{active_row['mol_id']}**")
+                lead_row = df_active.iloc[0]
+                delta_mu = active_row["mu"] - lead_row["mu"]
+                delta_str = f"{delta_mu:+.2f} Δμ" if active_row["mol_id"] != lead_row["mol_id"] else "Lead Ref"
 
-            p_s1, p_s2 = st.columns(2)
-            with p_s1:
-                st.metric("Candidate ID", f"{active_row['mol_id']}", f"Rank #{active_row['rank']}")
-                st.metric("Predicted Affinity", f"{active_row['mu']:.2f} pIC50", f"±{active_row['sigma']:.2f}")
-                st.metric("Drug-Likeness (QED)", f"{active_row['qed']:.3f}")
-            with p_s2:
-                st.metric("qPMHI Score", f"{active_row['qpmhi_score']:.4f}", delta_str)
-                st.metric("Synthetic Difficulty", f"{active_row['sa']:.2f}", "1=Easy, 10=Hard")
-                st.metric("Calculated LogP", f"{active_row['logp']:.2f}")
+                p_s1, p_s2 = st.columns(2)
+                with p_s1:
+                    st.metric("Candidate ID", f"{active_row['mol_id']}", delta=f"Rank #{active_row['rank']}")
+                    st.metric("Predicted Affinity", f"{active_row['mu']:.2f} pIC50", delta=f"±{active_row['sigma']:.2f} σ")
+                    st.metric("Drug-Likeness (QED)", f"{active_row['qed']:.3f}", help="Scale 0 to 1")
+                with p_s2:
+                    st.metric("qPMHI Score", f"{active_row['qpmhi_score']:.4f}", delta=delta_str)
+                    st.metric("Synthetic Difficulty", f"{active_row['sa']:.2f}", help="Scale 1-10 (Lower is easier)")
+                    st.metric("Calculated LogP", f"{active_row['logp']:.2f}")
 
-    # 2. Card Gallery View (Tiles)
-    elif view_mode == "Card Gallery (Tiles)":
-        st.markdown("##### Molecular Candidate Tile Gallery")
-        tiles_per_row = 3
-        df_display_tiles = df_filtered.head(15)  # Display top 15 tiles
-        for row_idx in range(0, len(df_display_tiles), tiles_per_row):
-            tile_cols = st.columns(tiles_per_row)
-            for c_idx in range(tiles_per_row):
-                item_idx = row_idx + c_idx
-                if item_idx < len(df_display_tiles):
-                    tile_row = df_display_tiles.iloc[item_idx]
-                    with tile_cols[c_idx]:
-                        st.markdown(f"""
-                        <div class="mochi-tile">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                <strong>{tile_row['mol_id']}</strong>
-                                <span class="pill-badge pill-matcha">Rank #{tile_row['rank']}</span>
+        # 2. Card Gallery View (Tiles)
+        elif view_mode == "Card Gallery (Tiles)":
+            st.markdown("##### Molecular Candidate Tile Gallery")
+            tiles_per_row = 3
+            df_display_tiles = df_filtered.head(15)
+            for row_idx in range(0, len(df_display_tiles), tiles_per_row):
+                tile_cols = st.columns(tiles_per_row)
+                for c_idx in range(tiles_per_row):
+                    item_idx = row_idx + c_idx
+                    if item_idx < len(df_display_tiles):
+                        tile_row = df_display_tiles.iloc[item_idx]
+                        with tile_cols[c_idx]:
+                            st.markdown(f"""
+                            <div class="mochi-tile">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                    <strong>{tile_row['mol_id']}</strong>
+                                    <span class="pill-badge pill-matcha">Rank #{tile_row['rank']}</span>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            t_svg = generate_2d_svg(tile_row["smiles_can"], width=230, height=130)
+                            if t_svg:
+                                components.html(render_svg_html(t_svg, height=135), height=140)
+                            st.markdown(f"""
+                                <div style="font-size:0.78rem; color:#44403c; line-height:1.4; margin-top:4px;">
+                                    <div><strong>Affinity:</strong> {tile_row['mu']:.2f} pIC50 | <strong>QED:</strong> {tile_row['qed']:.3f}</div>
+                                    <div><strong>MW:</strong> {tile_row['mw']:.1f} Da | <strong>LogP:</strong> {tile_row['logp']:.2f} | <strong>SA:</strong> {tile_row['sa']:.2f}</div>
+                                </div>
                             </div>
-                        """, unsafe_allow_html=True)
-                        t_svg = generate_2d_svg(tile_row["smiles_can"], width=240, height=130)
-                        if t_svg:
-                            components.html(f'<div style="text-align:center;">{t_svg}</div>', height=140)
-                        st.markdown(f"""
-                            <div style="font-size:0.8rem; color:#44403c; line-height:1.4;">
-                                <div><strong>Affinity:</strong> {tile_row['mu']:.2f} pIC50 | <strong>QED:</strong> {tile_row['qed']:.3f}</div>
-                                <div><strong>MW:</strong> {tile_row['mw']:.1f} Da | <strong>LogP:</strong> {tile_row['logp']:.2f} | <strong>SA:</strong> {tile_row['sa']:.2f}</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"Inspect {tile_row['mol_id']}", key=f"btn_tile_{tile_row['mol_id']}"):
-                            st.session_state["active_mol_id"] = tile_row["mol_id"]
-                            st.rerun()
+                            """, unsafe_allow_html=True)
+                            if st.button(f"Inspect {tile_row['mol_id']}", key=f"btn_tile_{tile_row['mol_id']}", use_container_width=True):
+                                st.session_state["sb_active_mol"] = tile_row["mol_id"]
+                                st.rerun()
 
-    # 3. Interactive Data Table View
-    else:
-        st.markdown("##### Full Multi-Objective Ranking Table")
-        t_cols = [c for c in ["custom_rank", "rank", "mol_id", "custom_score", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "status"] if c in df_filtered.columns]
-        df_show = df_filtered[t_cols].copy()
-        rename_map = {
-            "custom_rank": "Custom Rank", "rank": "Std Rank", "mol_id": "Candidate ID",
-            "custom_score": "Custom Score", "qpmhi_score": "qPMHI", "mu": "Affinity (μ)",
-            "sigma": "Uncertainty (σ)", "qed": "QED", "sa": "SA", "mw": "MW (Da)", "logp": "LogP", "status": "Status"
-        }
-        df_show = df_show.rename(columns=rename_map)
-        st.dataframe(df_show, height=320, use_container_width=True)
+        # 3. Interactive Data Table View
+        else:
+            st.markdown("##### Full Multi-Objective Ranking Table")
+            t_cols = [c for c in ["custom_rank", "rank", "mol_id", "custom_score", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "status"] if c in df_filtered.columns]
+            df_show = df_filtered[t_cols].copy()
+            rename_map = {
+                "custom_rank": "Custom Rank", "rank": "Std Rank", "mol_id": "Candidate ID",
+                "custom_score": "Custom Score", "qpmhi_score": "qPMHI", "mu": "Affinity (μ)",
+                "sigma": "Uncertainty (σ)", "qed": "QED", "sa": "SA", "mw": "MW (Da)", "logp": "LogP", "status": "Status"
+            }
+            df_show = df_show.rename(columns=rename_map)
+            st.dataframe(df_show, height=330, use_container_width=True)
 
-    # Cross-Property Correlation & SAR Explorer (LiveDesign Style)
-    with st.expander("Property Correlation & SAR Regression Explorer", expanded=False):
-        c_p1, c_p2 = st.columns(2)
-        prop_opts = [c for c in ["qed", "mu", "sa", "mw", "logp", "sigma", "qpmhi_score"] if c in df_filtered.columns]
-        with c_p1:
-            px_val = st.selectbox("X-Axis Property", prop_opts, index=0)
-        with c_p2:
-            py_val = st.selectbox("Y-Axis Property", prop_opts, index=1 if len(prop_opts) > 1 else 0)
+        # Cross-Property Correlation & SAR Explorer (LiveDesign Style)
+        with st.expander("Property Correlation & SAR Regression Explorer", expanded=False):
+            c_p1, c_p2 = st.columns(2)
+            prop_opts = [c for c in ["qed", "mu", "sa", "mw", "logp", "sigma", "qpmhi_score"] if c in df_filtered.columns]
+            with c_p1:
+                px_val = st.selectbox("X-Axis Property", prop_opts, index=0)
+            with c_p2:
+                py_val = st.selectbox("Y-Axis Property", prop_opts, index=1 if len(prop_opts) > 1 else 0)
 
-        if len(df_filtered) > 1 and df_filtered[px_val].nunique() > 1:
-            corr_val = float(np.corrcoef(df_filtered[px_val], df_filtered[py_val])[0, 1])
-            poly = np.polyfit(df_filtered[px_val], df_filtered[py_val], 1)
-            x_line = np.linspace(df_filtered[px_val].min(), df_filtered[px_val].max(), 20)
-            y_line = poly[0] * x_line + poly[1]
+            if len(df_filtered) > 1 and df_filtered[px_val].nunique() > 1:
+                corr_val = float(np.corrcoef(df_filtered[px_val], df_filtered[py_val])[0, 1])
+                poly = np.polyfit(df_filtered[px_val], df_filtered[py_val], 1)
+                x_line = np.linspace(df_filtered[px_val].min(), df_filtered[px_val].max(), 20)
+                y_line = poly[0] * x_line + poly[1]
 
-            fig_sar = go.Figure()
-            fig_sar.add_trace(go.Scatter(
-                x=df_filtered[px_val], y=df_filtered[py_val],
-                mode="markers", text=df_filtered["mol_id"],
-                marker=dict(size=8, color="#607274", line=dict(width=1, color="#292524")),
-                name="Candidates"
-            ))
-            fig_sar.add_trace(go.Scatter(
-                x=x_line, y=y_line, mode="lines",
-                line=dict(color="#c28b5b", dash="dash", width=1.5), name="Trendline"
-            ))
-            fig_sar.update_layout(
-                height=260, margin=dict(l=40, r=20, t=10, b=40),
-                paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
-                xaxis=dict(title=px_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
-                yaxis=dict(title=py_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
-            )
-            st.markdown(f"**Pearson Correlation ($r$)**: `{corr_val:+.3f}` | **Slope**: `{poly[0]:.4f}`")
-            st.plotly_chart(fig_sar, use_container_width=True, config={"displayModeBar": False})
+                fig_sar = go.Figure()
+                fig_sar.add_trace(go.Scatter(
+                    x=df_filtered[px_val], y=df_filtered[py_val],
+                    mode="markers", text=df_filtered["mol_id"],
+                    marker=dict(size=8, color="#607274", line=dict(width=1, color="#292524")),
+                    name="Candidates"
+                ))
+                fig_sar.add_trace(go.Scatter(
+                    x=x_line, y=y_line, mode="lines",
+                    line=dict(color="#c28b5b", dash="dash", width=1.5), name="Trendline"
+                ))
+                fig_sar.update_layout(
+                    height=280, margin=dict(l=45, r=20, t=15, b=40),
+                    paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
+                    xaxis=dict(title=px_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
+                    yaxis=dict(title=py_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
+                )
+                st.markdown(f"**Pearson Correlation ($r$)**: `{corr_val:+.3f}` | **Slope**: `{poly[0]:.4f}`")
+                st.plotly_chart(fig_sar, use_container_width=True, config={"displayModeBar": False})
 
 # ==============================================================================
 # Tab 2: Head-to-Head Comparison Matrix (SeeSAR / LiveDesign Style)
@@ -763,12 +879,19 @@ with tab_compare:
     st.caption("Select two candidates to compare directly against each other and the crystallographic benchmark lead (TAM16).")
 
     all_mols = df_active["mol_id"].tolist()
+    if "cmp_mol_a" not in st.session_state or st.session_state["cmp_mol_a"] not in all_mols:
+        st.session_state["cmp_mol_a"] = all_mols[0]
+    if "cmp_mol_b" not in st.session_state or st.session_state["cmp_mol_b"] not in all_mols:
+        st.session_state["cmp_mol_b"] = all_mols[1] if len(all_mols) > 1 else all_mols[0]
+
     cmp_col1, cmp_col2 = st.columns(2)
     with cmp_col1:
-        mol_a_id = st.selectbox("Candidate Molecule A", options=all_mols, index=0)
+        st.selectbox("Candidate Molecule A", options=all_mols, key="cmp_mol_a")
     with cmp_col2:
-        mol_b_idx = 1 if len(all_mols) > 1 else 0
-        mol_b_id = st.selectbox("Candidate Molecule B", options=all_mols, index=mol_b_idx)
+        st.selectbox("Candidate Molecule B", options=all_mols, key="cmp_mol_b")
+
+    mol_a_id = st.session_state["cmp_mol_a"]
+    mol_b_id = st.session_state["cmp_mol_b"]
 
     row_a = df_active[df_active["mol_id"] == mol_a_id].iloc[0]
     row_b = df_active[df_active["mol_id"] == mol_b_id].iloc[0]
@@ -778,25 +901,25 @@ with tab_compare:
     c_card1, c_card2, c_card3 = st.columns(3)
     with c_card1:
         st.markdown(f"**Molecule A: {row_a['mol_id']} (Rank #{row_a['rank']})**")
-        svg_a = generate_2d_svg(row_a["smiles_can"], width=260, height=140)
+        svg_a = generate_2d_svg(row_a["smiles_can"], width=250, height=140)
         if svg_a:
-            components.html(f'<div style="text-align:center; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px; padding:6px;">{svg_a}</div>', height=155)
+            components.html(render_svg_html(svg_a, height=145), height=150)
     with c_card2:
         st.markdown(f"**Molecule B: {row_b['mol_id']} (Rank #{row_b['rank']})**")
-        svg_b = generate_2d_svg(row_b["smiles_can"], width=260, height=140)
+        svg_b = generate_2d_svg(row_b["smiles_can"], width=250, height=140)
         if svg_b:
-            components.html(f'<div style="text-align:center; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px; padding:6px;">{svg_b}</div>', height=155)
+            components.html(render_svg_html(svg_b, height=145), height=150)
     with c_card3:
         st.markdown(f"**Reference Lead: {ref_row['mol_id']} (Co-Crystal)**")
-        svg_ref = generate_2d_svg(ref_row["smiles_can"], width=260, height=140)
+        svg_ref = generate_2d_svg(ref_row["smiles_can"], width=250, height=140)
         if svg_ref:
-            components.html(f'<div style="text-align:center; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px; padding:6px;">{svg_ref}</div>', height=155)
+            components.html(render_svg_html(svg_ref, height=145), height=150)
 
     # Multi-Parametric Radar Plot (MPO Radar)
     radar_col, table_col = st.columns([1.1, 1.2], gap="large")
     with radar_col:
         st.markdown("##### Multi-Parametric Optimization (MPO) Radar")
-        radar_metrics = ["Affinity (Norm)", "Drug-Likeness (QED)", "Synthetic Ease (10-SA)", "MW Compactness", "LogP Balance"]
+        radar_metrics = ["Affinity", "Drug-Likeness", "Synthetic Ease", "Compactness", "LogP Balance"]
         
         def normalize_mpo(row):
             aff_n = np.clip((row["mu"] - 5.0) / 3.0, 0.1, 1.0)
@@ -820,13 +943,14 @@ with tab_compare:
             name=f"Lead: {ref_row['mol_id']}", line_color="#c28b5b", fillcolor="rgba(194, 139, 91, 0.15)"
         ))
         fig_radar.update_layout(
-            height=300, margin=dict(l=30, r=30, t=20, b=20),
+            height=340,
+            margin=dict(l=35, r=35, t=35, b=35),
             paper_bgcolor="#ffffff",
             polar=dict(
-                radialaxis=dict(visible=True, range=[0, 1.0], gridcolor="#f4f1eb", tickfont=dict(color="#78716c")),
-                angularaxis=dict(tickfont=dict(color="#78716c", size=10))
+                radialaxis=dict(visible=True, range=[0, 1.0], showticklabels=False, gridcolor="#f0ece1"),
+                angularaxis=dict(tickfont=dict(color="#44403c", size=10))
             ),
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center", font=dict(color="#78716c"))
+            legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center", font=dict(color="#78716c", size=11))
         )
         st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
 
@@ -841,7 +965,7 @@ with tab_compare:
             {"Property": "H-Bond Donors / Acceptors", "Mol A": f"{int(row_a['hbd'])} / {int(row_a['hba'])}", "Mol B": f"{int(row_b['hbd'])} / {int(row_b['hba'])}", "Diff (A - B)": f"{int(row_a['hbd']-row_b['hbd'])} / {int(row_a['hba']-row_b['hba'])}", "Lead (Ref)": f"{int(ref_row['hbd'])} / {int(ref_row['hba'])}"},
             {"Property": "Rotatable Bonds", "Mol A": f"{int(row_a['rot_bonds'])}", "Mol B": f"{int(row_b['rot_bonds'])}", "Diff (A - B)": f"{int(row_a['rot_bonds']-row_b['rot_bonds']):+d}", "Lead (Ref)": f"{int(ref_row['rot_bonds'])}"}
         ])
-        st.dataframe(cmp_df, height=270, use_container_width=True)
+        st.dataframe(cmp_df, height=280, use_container_width=True)
 
 # ==============================================================================
 # Tab 3: 3D Conformer Inspection & Analogue Hypothesis Studio
@@ -851,7 +975,7 @@ with tab_conformer:
     mol_row = active_row
 
     with col_3d:
-        st.markdown(f"##### 3D Molecular Conformer: **{st.session_state['active_mol_id']}**")
+        st.markdown(f"##### 3D Molecular Conformer: **{active_mol_id}**")
         c1, c2, c3 = st.columns([1.3, 1.3, 0.9])
         with c1:
             mol_rep = st.selectbox("Style", options=["Sticks", "Ball and Stick", "Van der Waals Surface", "Wireframe"])
@@ -861,11 +985,11 @@ with tab_conformer:
             spin_on = st.checkbox("Auto-Spin", value=False)
 
         # Retrieve or compute 3D conformer
-        sdf_path = conformers_dir / f"{st.session_state['active_mol_id']}.sdf"
+        sdf_path = conformers_dir / f"{active_mol_id}.sdf"
         if sdf_path.exists():
             sdf_data = sdf_path.read_text(encoding="utf-8")
         else:
-            rec_calc = evaluate_single_smiles(mol_row["smiles_can"], mol_id=st.session_state["active_mol_id"])
+            rec_calc = evaluate_single_smiles(mol_row["smiles_can"], mol_id=active_mol_id)
             sdf_data = rec_calc["sdf"] if rec_calc else ""
 
         clean_sdf_json = json.dumps(sdf_data)
@@ -914,7 +1038,7 @@ with tab_conformer:
         </head>
         <body>
             <div id="viewport">
-                <div class="hud-tag">{st.session_state['active_mol_id']} | MMFF94 Conformer</div>
+                <div class="hud-tag">{active_mol_id} | MMFF94 Conformer</div>
             </div>
             <script>
                 let container = document.getElementById("viewport");
@@ -938,18 +1062,18 @@ with tab_conformer:
 
         if sdf_data:
             st.download_button(
-                label=f"Download {st.session_state['active_mol_id']} Conformer (SDF)",
+                label=f"Download {active_mol_id} Conformer (SDF)",
                 data=sdf_data,
-                file_name=f"{st.session_state['active_mol_id']}_conformer.sdf",
+                file_name=f"{active_mol_id}_conformer.sdf",
                 mime="chemical/x-mdl-sdfile",
                 use_container_width=True
             )
 
     with col_desc:
         st.markdown("##### 2D Chemical Structure")
-        svg_content = generate_2d_svg(mol_row["smiles_can"], width=320, height=170)
+        svg_content = generate_2d_svg(mol_row["smiles_can"], width=300, height=160)
         if svg_content:
-            components.html(f'<div style="text-align:center; padding:6px; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px; margin:0;">{svg_content}</div>', height=185)
+            components.html(render_svg_html(svg_content, height=170), height=175)
 
         d1, d2 = st.columns(2)
         with d1:
@@ -1000,50 +1124,52 @@ with tab_conformer:
                 else:
                     st.error("Invalid SMILES string or geometry generation failed.")
 
-    if st.session_state["custom_analogue"]:
+    if st.session_state.get("custom_analogue"):
         ca = st.session_state["custom_analogue"]
+        ca_mol_id = ca.get("mol_id", "ANALOGUE")
         ca_c1, ca_c2 = st.columns([1.0, 1.2], gap="medium")
         with ca_c1:
-            st.markdown(f"**2D Structure ({ca['mol_id']}):**")
-            ca_svg = generate_2d_svg(ca["smiles_can"], width=280, height=150)
+            st.markdown(f"**2D Structure ({ca_mol_id}):**")
+            ca_svg = generate_2d_svg(ca.get("smiles_can", ""), width=260, height=140)
             if ca_svg:
-                components.html(f'<div style="text-align:center; padding:6px; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px; margin:0;">{ca_svg}</div>', height=165)
+                components.html(render_svg_html(ca_svg, height=145), height=150)
             
-            lip_badge = '<span class="pill-badge pill-matcha">Lipinski Compliant</span>' if ca["lipinski_violations"] == 0 else f'<span class="pill-badge pill-azuki">{ca["lipinski_violations"]} Violations</span>'
-            veb_badge = '<span class="pill-badge pill-matcha">Veber Compliant</span>' if ca["veber_compliant"] else '<span class="pill-badge pill-azuki">Veber Violation</span>'
+            lip_viol = ca.get("lipinski_violations", 0)
+            veb_comp = ca.get("veber_compliant", True)
+            lip_badge = '<span class="pill-badge pill-matcha">Lipinski Compliant</span>' if lip_viol == 0 else f'<span class="pill-badge pill-azuki">{lip_viol} Violations</span>'
+            veb_badge = '<span class="pill-badge pill-matcha">Veber Compliant</span>' if veb_comp else '<span class="pill-badge pill-azuki">Veber Violation</span>'
             st.markdown(f"{lip_badge} {veb_badge}", unsafe_allow_html=True)
 
         with ca_c2:
             st.markdown("**Evaluated Properties:**")
             m_a1, m_a2, m_a3 = st.columns(3)
             with m_a1:
-                st.metric("Predicted Affinity", f"{ca['mu']:.2f} pIC50", f"{ca['mu'] - 7.24:+.2f} vs TAM16")
-                st.metric("QED Drug-Likeness", f"{ca['qed']:.3f}")
+                st.metric("Predicted Affinity", f"{ca.get('mu', 7.0):.2f} pIC50", delta=f"{ca.get('mu', 7.0) - 7.24:+.2f} vs TAM16")
+                st.metric("QED Drug-Likeness", f"{ca.get('qed', 0.5):.3f}")
             with m_a2:
-                st.metric("qPMHI Score", f"{ca['qpmhi_score']:.4f}")
-                st.metric("Synthetic Difficulty", f"{ca['sa']:.2f}")
+                st.metric("qPMHI Score", f"{ca.get('qpmhi_score', 0.2):.4f}")
+                st.metric("Synthetic Difficulty", f"{ca.get('sa', 3.0):.2f}")
             with m_a3:
-                st.metric("Molecular Weight", f"{ca['mw']:.1f} Da")
-                st.metric("Calculated LogP", f"{ca['logp']:.2f}")
+                st.metric("Molecular Weight", f"{ca.get('mw', 300.0):.1f} Da")
+                st.metric("Calculated LogP", f"{ca.get('logp', 3.0):.2f}")
 
             c_btn1, c_btn2 = st.columns(2)
             with c_btn1:
                 st.download_button(
                     label="Download Conformer (SDF)",
-                    data=ca["sdf"],
-                    file_name=f"{ca['mol_id']}_conformer.sdf",
+                    data=ca.get("sdf", ""),
+                    file_name=f"{ca_mol_id}_conformer.sdf",
                     mime="chemical/x-mdl-sdfile",
                     use_container_width=True
                 )
             with c_btn2:
                 if st.button("Add to Active Library", use_container_width=True):
-                    # Append to active library
                     new_entry = dict(ca)
                     new_entry["rank"] = len(df_active) + 1
                     new_entry["status"] = "Custom Lead"
                     st.session_state["uploaded_molecules"].append(new_entry)
-                    st.session_state["active_mol_id"] = ca["mol_id"]
-                    st.success(f"Added {ca['mol_id']} to library! Refreshing...")
+                    st.session_state["sb_active_mol"] = ca_mol_id
+                    st.success(f"Added {ca_mol_id} to library! Refreshing...")
                     time.sleep(0.4)
                     st.rerun()
 
@@ -1060,13 +1186,13 @@ with tab_solvers:
 
         m_s1, m_s2, m_s3 = st.columns(3)
         with m_s1:
-            st.metric("Fastest Solver", str(best_solver["solver"]), f"{best_solver['tts_99']:.4f} s TTS99")
+            st.metric("Fastest Solver", str(best_solver["solver"]), delta=f"{best_solver['tts_99']:.3f}s TTS99")
         with m_s2:
-            st.metric("Convergence Rate", f"{best_solver['p_success']*100:.0f}%", "Zero Violations")
+            st.metric("Convergence Rate", f"{best_solver['p_success']*100:.0f}%", delta="100% Feasible")
         with m_s3:
             if not spsa_solver.empty:
                 speedup = spsa_solver.iloc[0]["tts_99"] / best_solver["tts_99"]
-                st.metric("Speedup vs SpSA", f"{speedup:.1f}x Faster", "Confidence-Bounded")
+                st.metric("Speedup vs SpSA", f"{speedup:.1f}x", delta="Faster Convergence")
             else:
                 st.metric("Baseline Energy", f"{exact_solver['energy']:.2f} kcal/mol")
 
@@ -1079,12 +1205,12 @@ with tab_solvers:
             fig_e.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["energy"],
                 marker_color=mochi_bars, text=[f"{e:.2f}" for e in df_solvers["energy"]],
-                textposition="auto", textfont=dict(color="#ffffff", size=11)
+                textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_e.update_layout(
-                height=260, margin=dict(l=40, r=20, t=10, b=40),
+                height=280, margin=dict(l=40, r=20, t=20, b=40),
                 paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
-                yaxis=dict(title="Energy (kcal/mol)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
+                yaxis=dict(title="Energy (kcal/mol)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", range=[-33, 2], tickfont=dict(color="#78716c")),
                 xaxis=dict(tickfont=dict(color="#78716c"))
             )
             st.plotly_chart(fig_e, use_container_width=True, config={"displayModeBar": False})
@@ -1094,11 +1220,11 @@ with tab_solvers:
             fig_t = go.Figure()
             fig_t.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["tts_99"],
-                marker_color=mochi_bars, text=[f"{t:.4f} s" for t in df_solvers["tts_99"]],
-                textposition="auto", textfont=dict(color="#ffffff", size=11)
+                marker_color=mochi_bars, text=[f"{t:.4f}s" for t in df_solvers["tts_99"]],
+                textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_t.update_layout(
-                height=260, margin=dict(l=40, r=20, t=10, b=40),
+                height=280, margin=dict(l=40, r=20, t=20, b=40),
                 paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
                 yaxis=dict(title="TTS99 (s)", gridcolor="#f4f1eb", type="log", tickfont=dict(color="#78716c")),
                 xaxis=dict(tickfont=dict(color="#78716c"))
@@ -1156,7 +1282,6 @@ with tab_solvers:
 
                     elapsed_ms = (time.perf_counter() - t_start) * 1000
 
-                    # Validate one-hot feasibility
                     frag_id = qubo_dict["fragment_id"]
                     unique_frags = torch.unique(frag_id)
                     violations = 0
@@ -1171,9 +1296,9 @@ with tab_solvers:
                         st.metric("Ground-State Energy", f"{final_energy:.2f} kcal/mol")
                     with res_col2:
                         status_msg = "Strictly Feasible (0 Violations)" if violations == 0 else f"{violations} Violations"
-                        st.metric("Feasibility", "Feasible" if violations == 0 else "Infeasible", status_msg)
+                        st.metric("Feasibility", "Feasible" if violations == 0 else "Infeasible", delta=status_msg)
                     with res_col3:
-                        st.metric("Execution Wall Time", f"{elapsed_ms:.1f} ms", f"{num_agents} Parallel Agents")
+                        st.metric("Execution Wall Time", f"{elapsed_ms:.1f} ms", delta=f"{num_agents} Agents")
 
                     st.markdown("**Decoded Solution Bitstring ($x_0 \\dots x_{11}$):**")
                     bit_badges = " ".join([
@@ -1195,25 +1320,28 @@ with tab_audit:
             summary = json.load(f)
 
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("PDB Reference", str(summary.get("reference_pdb", "5V3Y")), "1.98 Å Resolution")
-        m2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")), "Benzofuran Core")
+        m1.metric("PDB Reference", str(summary.get("reference_pdb", "5V3Y")), delta="1.98 Å Res")
+        m2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")), delta="Benzofuran")
         rmsd = summary.get("heavy_atom_rmsd_A", 1.34)
-        m3.metric("Heavy-Atom RMSD", f"{rmsd:.2f} Å", "Passed (< 2.0 Å)")
-        m4.metric("Constraint Violations", int(summary.get("constraint_violations", 0)), "Resolved")
+        m3.metric("Heavy-Atom RMSD", f"{rmsd:.2f} Å", delta="Passed (<2.0Å)")
+        m4.metric("Constraint Violations", int(summary.get("constraint_violations", 0)), delta="0 Violations")
 
     st.markdown("---")
     st.markdown("##### Human-in-the-Loop (HITL) Decision Review")
 
     ch1, ch2 = st.columns([1.2, 1.0], gap="large")
 
+    all_active_mols = df_active["mol_id"].tolist()
+    if "audit_mol_selector" not in st.session_state or st.session_state["audit_mol_selector"] not in all_active_mols:
+        st.session_state["audit_mol_selector"] = active_mol_id
+
     with ch1:
-        candidate_idx = df_active["mol_id"].tolist().index(st.session_state["active_mol_id"])
-        review_mol = st.selectbox(
+        st.selectbox(
             "Candidate Under Review",
-            options=df_active["mol_id"].tolist(),
-            index=candidate_idx,
+            options=all_active_mols,
             key="audit_mol_selector"
         )
+        review_mol = st.session_state["audit_mol_selector"]
         reviewer_name = st.text_input("Reviewer Initials", value="Lab Investigator", max_chars=30)
         review_notes = st.text_area(
             "Experimental Notes & Synthetic Rationale",
