@@ -22,181 +22,161 @@ import streamlit.components.v1 as components
 # ==============================================================================
 st.set_page_config(
     layout="wide",
-    page_title="X-TUBIT: Screening and Annealing Platform",
-    initial_sidebar_state="collapsed"
+    page_title="X-TUBIT Screening Platform",
+    initial_sidebar_state="expanded"
 )
 
-# Professional academic dark theme (no neon colors, no emojis)
-ACADEMIC_CSS = """
+# ==============================================================================
+# Theme Configuration (Light Mode Default with Conservative Academic Palette)
+# ==============================================================================
+with st.sidebar:
+    st.markdown("### Display Settings")
+    theme_mode = st.radio(
+        "Color Palette",
+        options=["Light (Journal)", "Dark (Academic Slate)"],
+        index=0,
+        help="Select between classic journal publication light mode and muted academic dark slate."
+    )
+    is_dark = "Dark" in theme_mode
+
+if is_dark:
+    theme = {
+        "bg": "#0f172a",
+        "card_bg": "#1e293b",
+        "border": "#334155",
+        "text": "#f8fafc",
+        "subtext": "#94a3b8",
+        "plotly_bg": "#1e293b",
+        "grid": "#334155",
+        "axis_text": "#94a3b8",
+        "viewer_bg": "#0f172a",
+        "primary": "#3b82f6",
+        "secondary": "#d97706",
+        "bar_colors": ["#3b82f6", "#10b981", "#64748b", "#d97706"],
+        "callout_bg": "#1e293b",
+        "callout_border": "#3b82f6"
+    }
+else:
+    theme = {
+        "bg": "#f8fafc",
+        "card_bg": "#ffffff",
+        "border": "#e2e8f0",
+        "text": "#0f172a",
+        "subtext": "#475569",
+        "plotly_bg": "#ffffff",
+        "grid": "#f1f5f9",
+        "axis_text": "#475569",
+        "viewer_bg": "#ffffff",
+        "primary": "#1d4ed8",
+        "secondary": "#b45309",
+        "bar_colors": ["#1d4ed8", "#047857", "#475569", "#b45309"],
+        "callout_bg": "#f1f5f9",
+        "callout_border": "#1d4ed8"
+    }
+
+THEME_CSS = f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
+    html, body, [class*="css"] {{
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    }}
 
-    code, pre {
-        font-family: 'JetBrains Mono', monospace;
-    }
+    .stApp {{
+        background-color: {theme['bg']};
+        color: {theme['text']};
+    }}
 
-    /* Base Theme */
-    .stApp {
-        background-color: #0d121c;
-        color: #e2e8f0;
-    }
-
-    /* Top Navigation Header */
-    .platform-header {
-        background-color: #131b29;
-        border-bottom: 1px solid #1e293b;
-        padding: 16px 24px;
+    /* Clean Card Container */
+    .journal-header {{
+        background-color: {theme['card_bg']};
+        border: 1px solid {theme['border']};
+        border-radius: 8px;
+        padding: 18px 24px;
         margin-bottom: 20px;
-        border-radius: 6px;
-    }
-    .platform-title {
+    }}
+    .journal-title {{
         font-size: 1.25rem;
         font-weight: 700;
-        color: #f8fafc;
-        letter-spacing: -0.01em;
+        color: {theme['text']};
         margin-bottom: 4px;
-    }
-    .platform-subtitle {
+    }}
+    .journal-subtitle {{
         font-size: 0.85rem;
-        color: #94a3b8;
-    }
-    .platform-metadata {
+        color: {theme['subtext']};
+        line-height: 1.4;
+    }}
+    .journal-meta {{
         display: flex;
-        gap: 20px;
+        flex-wrap: wrap;
+        gap: 18px;
         margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid {theme['border']};
         font-size: 0.8rem;
-        color: #cbd5e1;
-        border-top: 1px solid #1e293b;
-        padding-top: 8px;
-    }
-    .meta-item {
-        display: flex;
-        gap: 6px;
-    }
-    .meta-label {
-        color: #64748b;
-        font-weight: 500;
-    }
-    .meta-value {
-        color: #93c5fd;
-        font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Panel Card */
-    .content-panel {
-        background-color: #131b29;
-        border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 18px 20px;
-        margin-bottom: 16px;
-    }
-    .panel-heading {
-        font-size: 0.95rem;
+        color: {theme['subtext']};
+    }}
+    .meta-tag {{
         font-weight: 600;
-        color: #f1f5f9;
-        margin-bottom: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #1e293b;
-        padding-bottom: 8px;
-    }
-    .panel-subtext {
-        font-size: 0.8rem;
-        color: #64748b;
-        font-weight: 400;
-    }
+        color: {theme['text']};
+    }}
 
-    /* Property Chips */
-    .prop-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 10px;
-        margin-top: 10px;
-    }
-    .prop-card {
-        background-color: #1a2333;
-        border: 1px solid #243048;
+    /* Stat Box */
+    .stat-card {{
+        background-color: {theme['card_bg']};
+        border: 1px solid {theme['border']};
         border-radius: 6px;
-        padding: 8px 12px;
-    }
-    .prop-label {
-        font-size: 0.7rem;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .prop-value {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #f8fafc;
-        margin-top: 2px;
-        font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Status Tags */
-    .status-badge {
-        padding: 2px 8px;
-        border-radius: 4px;
+        padding: 10px 14px;
+        margin-bottom: 10px;
+    }}
+    .stat-label {{
         font-size: 0.75rem;
-        font-weight: 500;
-        display: inline-block;
-    }
-    .status-tophit {
-        background-color: #1e3a5f;
-        color: #93c5fd;
-        border: 1px solid #2b5282;
-    }
-    .status-reviewed {
-        background-color: #143527;
-        color: #86efac;
-        border: 1px solid #1f513b;
-    }
-    .status-pending {
-        background-color: #3b2d18;
-        color: #fde047;
-        border: 1px solid #574121;
-    }
+        color: {theme['subtext']};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+    .stat-value {{
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: {theme['text']};
+        margin-top: 2px;
+    }}
 
-    /* Parameter Table */
-    .theory-box {
-        background-color: #161f30;
-        border-left: 3px solid #3b82f6;
-        padding: 12px 16px;
+    /* Explanatory callout */
+    .academic-callout {{
+        background-color: {theme['callout_bg']};
+        border-left: 3px solid {theme['callout_border']};
         border-radius: 0 6px 6px 0;
-        margin-bottom: 16px;
+        padding: 12px 16px;
         font-size: 0.85rem;
-        color: #cbd5e1;
+        color: {theme['subtext']};
         line-height: 1.5;
-    }
+        margin-bottom: 16px;
+    }}
 </style>
 """
-st.markdown(ACADEMIC_CSS, unsafe_allow_html=True)
+st.markdown(THEME_CSS, unsafe_allow_html=True)
 
 # ==============================================================================
 # Header Section
 # ==============================================================================
-st.markdown("""
-<div class="platform-header">
-    <div class="platform-title">X-TUBIT: High-Throughput Screening & Digital Annealing Platform</div>
-    <div class="platform-subtitle">
-        Bayesian Invariant Surrogate Modeling and Yanagisawa Hamiltonian Docking for Mycobacterium tuberculosis Pks13-TE
+st.markdown(f"""
+<div class="journal-header">
+    <div class="journal-title">X-TUBIT: In Silico Screening and Digital Annealing Platform</div>
+    <div class="journal-subtitle">
+        Bayesian Uncertainty Quantification and Yanagisawa 4-Term Hamiltonian Docking for Mycobacterium tuberculosis Pks13-TE
     </div>
-    <div class="platform-metadata">
-        <div class="meta-item"><span class="meta-label">Target:</span> <span class="meta-value">Pks13-TE (PDB 5V3Y, 1.98 A)</span></div>
-        <div class="meta-item"><span class="meta-label">Cohort:</span> <span class="meta-value">Aggarwal 2017 & Krieger 2024 Series</span></div>
-        <div class="meta-item"><span class="meta-label">Hamiltonian Formulation:</span> <span class="meta-value">Yanagisawa 4-Term QUBO / Ising</span></div>
-        <div class="meta-item"><span class="meta-label">Institution:</span> <span class="meta-value">Universitas Indonesia</span></div>
+    <div class="journal-meta">
+        <div>Target: <span class="meta-tag">Pks13-TE (PDB ID: 5V3Y, 1.98 Å)</span></div>
+        <div>Inhibitor Series: <span class="meta-tag">TAM1–TAM17 & X20403</span></div>
+        <div>Method: <span class="meta-tag">Multi-Objective qPMHI + Digital Annealing</span></div>
+        <div>Affiliation: <span class="meta-tag">Universitas Indonesia</span></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# Data Loading & Verification
+# Data Loading
 # ==============================================================================
 data_path = Path("data/processed/selected.parquet")
 metrics_path = Path("data/processed/metrics/summary.json")
@@ -205,14 +185,13 @@ conformers_dir = Path("data/processed/conformers")
 audit_file = Path("data/processed/hitl_decisions.jsonl")
 
 if not data_path.exists():
-    st.error("Processed candidates artifact not found. Please execute the pipeline runner first (python scripts/run_pipeline.py).")
+    st.error("Processed candidates artifact not found. Please run the execution pipeline first (python scripts/run_pipeline.py).")
     st.stop()
 
 df = pd.read_parquet(data_path)
 if "rank" not in df.columns:
     df["rank"] = range(1, len(df) + 1)
 
-# Load audit decisions
 reviewed_mols = set()
 if audit_file.exists():
     with open(audit_file, "r", encoding="utf-8") as f:
@@ -227,35 +206,47 @@ df["status"] = df["mol_id"].apply(
     lambda m: "Reviewed" if m in reviewed_mols else ("Top Hit" if m == df.iloc[0]["mol_id"] else "Pending")
 )
 
+# Sidebar Quick Information
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("### Target Summary")
+    st.markdown("**Receptor**: Pks13 Thioesterase")
+    st.markdown("**Organism**: *M. tuberculosis*")
+    st.markdown("**Active Site**: Ser1533 / Asp1644")
+    st.markdown(f"**Total Candidates**: {len(df)}")
+    st.markdown("---")
+    st.markdown("### Quick Commands")
+    st.code("python scripts/run_pipeline.py", language="bash")
+    st.code("pytest tests/ -v", language="bash")
+
 # ==============================================================================
 # Navigation Tabs
 # ==============================================================================
-tab_screening, tab_3d, tab_annealing, tab_validation = st.tabs([
-    "1. Multi-Objective Screening & Pareto Frontier",
-    "2. 3D Conformer & Active Site Inspection",
-    "3. Digital Annealing & QUBO Solvers",
-    "4. RMSD Validation & Human-in-the-Loop Audit"
+tab_pareto, tab_conformer, tab_solvers, tab_audit = st.tabs([
+    "Multi-Objective Screening & Pareto Frontier",
+    "3D Conformer & Molecular Inspection",
+    "Digital Annealing & QUBO Solvers",
+    "RMSD Validation & Human-in-the-Loop Audit"
 ])
 
 # ==============================================================================
 # Tab 1: Multi-Objective Screening & Pareto Frontier
 # ==============================================================================
-with tab_screening:
+with tab_pareto:
     st.markdown("""
-    <div class="theory-box">
-        <strong>Multi-Objective Pareto Selection Principle:</strong> Candidates are evaluated across three simultaneous objectives: 
-        (1) Epistemic Bayesian affinity prediction (μ), (2) Quantitative Estimate of Drug-likeness (QED), and (3) Synthetic Accessibility (SA). 
-        The Quasi-Pareto Multi-Objective Hypervolume Improvement (qPMHI) scores the expected hypervolume contribution of each candidate 
-        over the reference nadir point [min(μ)-0.5, 0.0, 0.0].
+    <div class="academic-callout">
+        <strong>Multi-Objective Pareto Frontier Formulation:</strong>
+        Candidates are evaluated simultaneously across three metrics: predicted binding affinity (&mu; in pIC<sub>50</sub>),
+        drug-likeness (QED &isin; [0, 1]), and synthetic tractability (SA<sup>-1</sup>).
+        The golden line denotes the non-dominated Pareto frontier. Points with higher &mu; and QED dominate points below and to the left.
     </div>
     """, unsafe_allow_html=True)
 
-    col_chart, col_details = st.columns([1.3, 1.0], gap="large")
+    c_plot, c_stats = st.columns([1.4, 1.0], gap="large")
 
-    with col_chart:
-        st.markdown('<div class="panel-heading"><span>Pareto Frontier: QED vs. Predicted Affinity (pIC50)</span><span class="panel-subtext">Golden curve = Non-dominated frontier</span></div>', unsafe_allow_html=True)
+    with c_plot:
+        st.markdown("##### Pareto Optimization: QED vs. Predicted Affinity")
 
-        # Compute 2D Pareto front
         pts = df[["qed", "mu"]].values
         pareto_mask = np.ones(len(pts), dtype=bool)
         for i in range(len(pts)):
@@ -265,110 +256,102 @@ with tab_screening:
                 pareto_mask[i] = False
         df_pareto = df[pareto_mask].sort_values(by="qed")
 
-        fig_pareto = go.Figure()
+        fig = go.Figure()
 
-        # All Candidates
-        fig_pareto.add_trace(go.Scatter(
+        # Candidates scatter
+        fig.add_trace(go.Scatter(
             x=df["qed"],
             y=df["mu"],
             mode="markers",
-            name="Screened Candidates",
+            name="Candidates",
             error_y=dict(
                 type="data",
                 array=df["sigma"],
                 visible=True,
-                color="rgba(148, 163, 184, 0.35)",
+                color="rgba(100, 116, 139, 0.4)",
                 thickness=1.2,
                 width=3
             ),
             marker=dict(
                 size=8,
-                color="#3b82f6",
-                line=dict(width=1, color="#1d4ed8")
+                color=theme["primary"],
+                line=dict(width=1, color=theme["border"])
             ),
             customdata=np.column_stack([df["mol_id"], df["qed"], df["mu"], df["sigma"], df["sa"], df["rank"]]),
             hovertemplate=(
-                "<b>Candidate: %{customdata[0]}</b> (Rank #%{customdata[5]})<br>"
+                "<b>%{customdata[0]}</b> (Rank #%{customdata[5]})<br>"
                 "QED: %{customdata[1]:.3f}<br>"
-                "Predicted Affinity (μ): %{customdata[2]:.2f} ± %{customdata[3]:.2f} pIC50<br>"
+                "Affinity (μ): %{customdata[2]:.2f} ± %{customdata[3]:.2f} pIC50<br>"
                 "SA Score: %{customdata[4]:.2f}<extra></extra>"
             )
         ))
 
-        # Pareto Frontier Line
-        fig_pareto.add_trace(go.Scatter(
+        # Pareto Frontier Curve
+        fig.add_trace(go.Scatter(
             x=df_pareto["qed"],
             y=df_pareto["mu"],
             mode="lines+markers",
             name="Pareto Frontier",
-            line=dict(color="#d97706", width=2.0),
-            marker=dict(size=6, color="#b45309"),
+            line=dict(color=theme["secondary"], width=2.0),
+            marker=dict(size=6, color=theme["secondary"]),
             hoverinfo="skip"
         ))
 
-        fig_pareto.update_layout(
-            height=340,
+        fig.update_layout(
+            height=360,
             margin=dict(l=45, r=20, t=10, b=40),
-            paper_bgcolor="#131b29",
-            plot_bgcolor="#131b29",
+            paper_bgcolor=theme["plotly_bg"],
+            plot_bgcolor=theme["plotly_bg"],
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(size=11, color="#94a3b8"),
+                font=dict(size=11, color=theme["subtext"]),
                 bgcolor="rgba(0,0,0,0)"
             ),
             xaxis=dict(
                 title="Drug-Likeness (QED Score)",
-                title_font=dict(size=11, color="#94a3b8"),
-                tickfont=dict(size=10, color="#64748b"),
-                gridcolor="#1e293b",
-                zerolinecolor="#334155"
+                title_font=dict(size=11, color=theme["subtext"]),
+                tickfont=dict(size=10, color=theme["axis_text"]),
+                gridcolor=theme["grid"],
+                zerolinecolor=theme["border"]
             ),
             yaxis=dict(
                 title="Predicted Affinity μ (pIC50)",
-                title_font=dict(size=11, color="#94a3b8"),
-                tickfont=dict(size=10, color="#64748b"),
-                gridcolor="#1e293b",
-                zerolinecolor="#334155"
+                title_font=dict(size=11, color=theme["subtext"]),
+                tickfont=dict(size=10, color=theme["axis_text"]),
+                gridcolor=theme["grid"],
+                zerolinecolor=theme["border"]
             )
         )
-        st.plotly_chart(fig_pareto, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    with col_details:
-        st.markdown('<div class="panel-heading"><span>Summary Statistics</span><span class="panel-subtext">Screening Cohort</span></div>', unsafe_allow_html=True)
-        top_row = df.iloc[0]
-        st.markdown(f"""
-        <div class="prop-grid">
-            <div class="prop-card"><div class="prop-label">Lead Candidate</div><div class="prop-value">{top_row['mol_id']}</div></div>
-            <div class="prop-card"><div class="prop-label">Top Affinity (μ)</div><div class="prop-value">{top_row['mu']:.2f}</div></div>
-            <div class="prop-card"><div class="prop-label">Uncertainty (σ)</div><div class="prop-value">±{top_row['sigma']:.2f}</div></div>
-            <div class="prop-card"><div class="prop-label">Top qPMHI Score</div><div class="prop-value">{top_row['qpmhi_score']:.4f}</div></div>
-            <div class="prop-card"><div class="prop-label">Total Candidates</div><div class="prop-value">{len(df)}</div></div>
-            <div class="prop-card"><div class="prop-label">Calibrated τ</div><div class="prop-value">{top_row.get('tau', 2.03):.4f}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
+    with c_stats:
+        st.markdown("##### Candidate Metric Highlights")
+        lead = df.iloc[0]
 
-        st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
-        st.markdown("**Metric Definitions:**")
-        st.markdown("- **Affinity (μ)**: Predicted negative decimal logarithm of $\\mathrm{IC}_{50}$ ($\\mathrm{pIC}_{50} = -\\log_{10} \\mathrm{IC}_{50}$). Higher indicates stronger binding.")
-        st.markdown("- **Uncertainty (σ)**: Calibrated Bayesian epistemic uncertainty from 50 Monte Carlo variational forward passes.")
-        st.markdown("- **Synthetic Accessibility (SA)**: Ertl-Schuffenhauer structural complexity score from 1 (easy) to 10 (difficult).")
+        s1, s2 = st.columns(2)
+        with s1:
+            st.metric("Top Hit ID", str(lead["mol_id"]))
+            st.metric("Top Affinity (μ)", f"{lead['mu']:.2f} pIC50", f"±{lead['sigma']:.2f}")
+            st.metric("QED Drug-Likeness", f"{lead['qed']:.3f}")
+        with s2:
+            st.metric("qPMHI Score", f"{lead['qpmhi_score']:.4f}")
+            st.metric("Synthetic Access", f"{lead['sa']:.2f}", "1=Easy, 10=Hard")
+            st.metric("Experimental pIC50", f"{lead.get('pIC50', 0.0):.2f}")
 
-    # Full Filterable Data Table
-    st.markdown('<div class="panel-heading" style="margin-top: 20px;"><span>Ranked Candidate Data Table</span><span class="panel-subtext">Sorted by qPMHI Acquisition Score</span></div>', unsafe_allow_html=True)
+    st.markdown("##### Full Candidate Ranking Table")
+    filter_query = st.text_input("Filter candidate ID", "", placeholder="Search candidate ID...", label_visibility="collapsed")
+    df_filtered = df[df["mol_id"].str.contains(filter_query, case=False)] if filter_query else df
 
-    filter_txt = st.text_input("Filter candidate ID", "", placeholder="Filter by Mol ID (e.g. X20403, TAM16)...", label_visibility="collapsed")
-    df_show = df[df["mol_id"].str.contains(filter_txt, case=False)] if filter_txt else df
-
-    table_cols = ["rank", "mol_id", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "pIC50", "status"]
-    df_table = df_show[[c for c in table_cols if c in df_show.columns]].copy()
-    df_table.columns = ["Rank", "Candidate ID", "qPMHI", "Affinity (μ)", "Uncertainty (σ)", "QED", "SA", "MW (Da)", "LogP", "Exp. pIC50", "Status"]
+    cols_table = ["rank", "mol_id", "qpmhi_score", "mu", "sigma", "qed", "sa", "mw", "logp", "pIC50", "status"]
+    df_disp = df_filtered[[c for c in cols_table if c in df_filtered.columns]].copy()
+    df_disp.columns = ["Rank", "Candidate ID", "qPMHI", "Affinity (μ)", "Uncertainty (σ)", "QED", "SA", "MW (Da)", "LogP", "Exp. pIC50", "Status"]
 
     st.dataframe(
-        df_table.style.format({
+        df_disp.style.format({
             "qPMHI": "{:.4f}",
             "Affinity (μ)": "{:.2f}",
             "Uncertainty (σ)": "{:.2f}",
@@ -378,198 +361,201 @@ with tab_screening:
             "LogP": "{:.2f}",
             "Exp. pIC50": "{:.2f}"
         }),
-        height=280,
+        height=260,
         use_container_width=True
     )
 
 # ==============================================================================
-# Tab 2: 3D Conformer & Active Site Inspection
+# Tab 2: 3D Conformer & Molecular Inspection
 # ==============================================================================
-with tab_3d:
+with tab_conformer:
     st.markdown("""
-    <div class="theory-box">
-        <strong>Conformer Generation & Coordinate Validation:</strong> 3D atomic coordinates are generated via RDKit ETKDGv3 
-        distance geometry followed by MMFF94 force-field geometry optimization. Conformers represent lowest-energy 
-        gas-phase states utilized for pocket placement and non-bonded interaction evaluations.
+    <div class="academic-callout">
+        <strong>Conformer Generation & Coordinate Validation:</strong> 3D coordinates represent lowest-energy
+        gas-phase states optimized with the MMFF94 force field starting from ETKDGv3 distance-geometry distance matrices.
     </div>
     """, unsafe_allow_html=True)
 
-    col_view, col_mol_meta = st.columns([1.3, 1.0], gap="large")
+    c_3d, c_desc = st.columns([1.3, 1.0], gap="large")
 
-    with col_view:
-        st.markdown('<div class="panel-heading"><span>3D Molecular Conformer Viewer</span><span class="panel-subtext">WebGL Rendering (CPK Colors)</span></div>', unsafe_allow_html=True)
+    with c_3d:
+        st.markdown("##### 3D Molecular Conformer Viewer")
+        ctrl1, ctrl2, ctrl3 = st.columns([1.4, 1.2, 1.0])
+        with ctrl1:
+            active_candidate = st.selectbox("Select Molecule", options=df["mol_id"].tolist(), index=0)
+        with ctrl2:
+            render_style = st.selectbox("Representation", options=["Sticks", "Ball & Stick", "Surface (VDW)", "Wireframe"])
+        with ctrl3:
+            spin_toggle = st.checkbox("Rotate View", value=False)
 
-        c1, c2, c3 = st.columns([1.4, 1.2, 1.0])
-        with c1:
-            selected_mol = st.selectbox("Active Molecule", options=df["mol_id"].tolist(), index=0)
-        with c2:
-            mol_style = st.selectbox("Style", options=["Sticks", "Ball and Stick", "Van der Waals Surface", "Wireframe"])
-        with c3:
-            enable_spin = st.checkbox("Auto-Spin", value=False)
+        sdf_path = conformers_dir / f"{active_candidate}.sdf"
+        sdf_text = sdf_path.read_text(encoding="utf-8") if sdf_path.exists() else ""
+        clean_sdf = json.dumps(sdf_text)
 
-        sdf_file = conformers_dir / f"{selected_mol}.sdf"
-        sdf_data = sdf_file.read_text(encoding="utf-8") if sdf_file.exists() else ""
-        clean_sdf_json = json.dumps(sdf_data)
+        # 3Dmol style rules tailored to light/dark themes
+        if is_dark:
+            carbon_color = "default"
+            surface_color = "#64748b"
+        else:
+            carbon_color = "default"
+            surface_color = "#94a3b8"
 
-        # Style definition in 3Dmol.js
-        style_rule = ""
-        surface_rule = ""
-        if mol_style == "Sticks":
-            style_rule = 'viewer.setStyle({}, {stick: {radius: 0.20, colorscheme: "default"}});'
-        elif mol_style == "Ball and Stick":
-            style_rule = 'viewer.setStyle({}, {sphere: {scale: 0.30}, stick: {radius: 0.15, colorscheme: "default"}});'
-        elif mol_style == "Van der Waals Surface":
-            style_rule = 'viewer.setStyle({}, {stick: {radius: 0.15}});'
-            surface_rule = 'viewer.addSurface($3Dmol.SurfaceType.VDW, {opacity: 0.65, color: "#64748b"});'
-        elif mol_style == "Wireframe":
-            style_rule = 'viewer.setStyle({}, {line: {linewidth: 2.0}});'
+        if render_style == "Sticks":
+            style_js = f'viewer.setStyle({{}}, {{stick: {{radius: 0.20, colorscheme: "{carbon_color}"}}}});'
+            surface_js = ""
+        elif render_style == "Ball & Stick":
+            style_js = f'viewer.setStyle({{}}, {{sphere: {{scale: 0.30}}, stick: {{radius: 0.15, colorscheme: "{carbon_color}"}}}});'
+            surface_js = ""
+        elif render_style == "Surface (VDW)":
+            style_js = 'viewer.setStyle({}, {stick: {radius: 0.15}});'
+            surface_js = f'viewer.addSurface($3Dmol.SurfaceType.VDW, {{opacity: 0.65, color: "{surface_color}"}});'
+        elif render_style == "Wireframe":
+            style_js = 'viewer.setStyle({}, {line: {linewidth: 2.0}});'
+            surface_js = ""
 
-        spin_call = "viewer.spin(true, 1.0);" if enable_spin else "viewer.spin(false);"
+        spin_js = "viewer.spin(true, 1.0);" if spin_toggle else "viewer.spin(false);"
 
-        html_viewer = f"""
+        html_3d = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"></script>
             <style>
-                body {{ margin: 0; padding: 0; background-color: #0d121c; overflow: hidden; }}
-                #viewport {{
+                body {{ margin: 0; padding: 0; background-color: {theme['viewer_bg']}; overflow: hidden; }}
+                #canvas {{
                     width: 100%;
                     height: 440px;
-                    border: 1px solid #1e293b;
+                    border: 1px solid {theme['border']};
                     border-radius: 6px;
-                    background-color: #0f172a;
+                    background-color: {theme['viewer_bg']};
                     position: relative;
                 }}
-                .hud-caption {{
+                .hud {{
                     position: absolute;
                     bottom: 10px;
                     left: 10px;
                     font-family: monospace;
                     font-size: 11px;
-                    color: #94a3b8;
-                    background: rgba(15, 23, 42, 0.85);
+                    color: {theme['subtext']};
+                    background: {theme['card_bg']};
                     padding: 4px 8px;
                     border-radius: 4px;
-                    pointer-events: none;
+                    border: 1px solid {theme['border']};
                 }}
             </style>
         </head>
         <body>
-            <div id="viewport">
-                <div class="hud-caption">{selected_mol} | MMFF94 Optimized Conformer</div>
+            <div id="canvas">
+                <div class="hud">{active_candidate} | MMFF94 Conformer</div>
             </div>
             <script>
-                let container = document.getElementById("viewport");
-                let viewer = $3Dmol.createViewer(container, {{ backgroundColor: "#0f172a" }});
-                let sdf = {clean_sdf_json};
-                if (sdf && sdf.length > 0) {{
-                    viewer.addModel(sdf, "sdf");
-                    {style_rule}
-                    {surface_rule}
+                let elem = document.getElementById("canvas");
+                let viewer = $3Dmol.createViewer(elem, {{ backgroundColor: "{theme['viewer_bg']}" }});
+                let sdfData = {clean_sdf};
+                if (sdfData && sdfData.length > 0) {{
+                    viewer.addModel(sdfData, "sdf");
+                    {style_js}
+                    {surface_js}
                     viewer.zoomTo();
                     viewer.render();
-                    {spin_call}
+                    {spin_js}
                 }} else {{
-                    viewer.addLabel("Conformer coordinates not found", {{fontSize: 13, fontColor: '#f87171'}});
+                    viewer.addLabel("Conformer not found", {{fontSize: 13, fontColor: '#ef4444'}});
                 }}
             </script>
         </body>
         </html>
         """
-        components.html(html_viewer, height=450)
+        components.html(html_3d, height=450)
 
-    with col_mol_meta:
-        st.markdown('<div class="panel-heading"><span>Molecular Descriptors</span><span class="panel-subtext">RDKit Calculations</span></div>', unsafe_allow_html=True)
-        m_row = df[df["mol_id"] == selected_mol].iloc[0]
+    with c_desc:
+        st.markdown("##### Chemical Properties & Descriptors")
+        mol_row = df[df["mol_id"] == active_candidate].iloc[0]
 
-        st.markdown(f"""
-        <div class="prop-grid">
-            <div class="prop-card"><div class="prop-label">Molecular Weight</div><div class="prop-value">{m_row.get('mw', 0.0):.1f} Da</div></div>
-            <div class="prop-card"><div class="prop-label">Calculated LogP</div><div class="prop-value">{m_row.get('logp', 0.0):.2f}</div></div>
-            <div class="prop-card"><div class="prop-label">H-Bond Donors</div><div class="prop-value">{int(m_row.get('hbd', 0))}</div></div>
-            <div class="prop-card"><div class="prop-label">H-Bond Acceptors</div><div class="prop-value">{int(m_row.get('hba', 0))}</div></div>
-            <div class="prop-card"><div class="prop-label">Rotatable Bonds</div><div class="prop-value">{int(m_row.get('rot_bonds', 0))}</div></div>
-            <div class="prop-card"><div class="prop-label">Formal Charge</div><div class="prop-value">{int(m_row.get('formal_charge', 0))}</div></div>
-            <div class="prop-card"><div class="prop-label">QED Drug-Likeness</div><div class="prop-value">{m_row.get('qed', 0.0):.3f}</div></div>
-            <div class="prop-card"><div class="prop-label">Synthetic Access</div><div class="prop-value">{m_row.get('sa', 0.0):.2f}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
+        d1, d2 = st.columns(2)
+        with d1:
+            st.metric("Molecular Weight", f"{mol_row.get('mw', 0.0):.1f} Da")
+            st.metric("Calculated LogP", f"{mol_row.get('logp', 0.0):.2f}")
+            st.metric("H-Bond Donors", f"{int(mol_row.get('hbd', 0))}")
+            st.metric("H-Bond Acceptors", f"{int(mol_row.get('hba', 0))}")
+        with d2:
+            st.metric("Rotatable Bonds", f"{int(mol_row.get('rot_bonds', 0))}")
+            st.metric("Formal Charge", f"{int(mol_row.get('formal_charge', 0))}")
+            st.metric("QED Drug-Likeness", f"{mol_row.get('qed', 0.0):.3f}")
+            st.metric("SA Accessibility", f"{mol_row.get('sa', 0.0):.2f}")
 
-        st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-        st.markdown("**Canonical SMILES Representation:**")
-        st.code(str(m_row.get("smiles_can", "")), language="text")
+        st.markdown("**Canonical SMILES:**")
+        st.code(str(mol_row.get("smiles_can", "")), language="text")
 
-        st.markdown("**Bemis-Murcko Scaffold:**")
-        st.code(str(m_row.get("scaffold", "")), language="text")
+        st.markdown("**Murcko Scaffold Core:**")
+        st.code(str(mol_row.get("scaffold", "")), language="text")
 
 # ==============================================================================
 # Tab 3: Digital Annealing & QUBO Solvers
 # ==============================================================================
-with tab_annealing:
+with tab_solvers:
     st.markdown("""
-    <div class="theory-box">
-        <strong>Yanagisawa 4-Term Docking Hamiltonian:</strong>
-        Flexible ligand placement in the Pks13 catalytic pocket is mapped to a Quadratic Unconstrained Binary Optimization (QUBO) problem:
+    <div class="academic-callout">
+        <strong>Yanagisawa 4-Term Docking Hamiltonian Formulation:</strong>
+        Flexible ligand placement in the Pks13 catalytic pocket is structured as a Quadratic Unconstrained Binary Optimization (QUBO) problem:
         <br>
         <code>H(x) = A &Sigma; &Delta;G_i x_i + B &Sigma;_{i&lt;j} clash_{ij} x_i x_j + C &Sigma;_{i&lt;j} conn_{ij} x_i x_j + (D/2) &Sigma;_k (&Sigma;_{i &isin; F_k} x_i - 1)^2</code>
         <br>
-        where <code>A=1.0, B=5.0, C=5.0, D=25.0</code>. The problem is mapped to an Ising spin system 
-        <code>H(s) = -1/2 s^T J s - h^T s + c_0</code> and solved using exact search and digital annealing engines.
+        where <code>A=1.0, B=5.0, C=5.0, D=25.0</code>. 
+        Exact exhaustive search serves as ground-truth baseline, compared against digital annealing engines (TApSA, SpSA, Two-Stage tSB).
     </div>
     """, unsafe_allow_html=True)
 
     if solver_path.exists():
-        df_solv = pd.read_parquet(solver_path)
+        df_solvers = pd.read_parquet(solver_path)
 
-        col_s1, col_s2 = st.columns([1.1, 1.1], gap="large")
+        cs1, cs2 = st.columns([1.1, 1.1], gap="large")
 
-        with col_s1:
-            st.markdown('<div class="panel-heading"><span>Minimum Ground-State Energy Reached</span><span class="panel-subtext">Lower energy (more negative) is better</span></div>', unsafe_allow_html=True)
-            fig_energy = go.Figure()
-            fig_energy.add_trace(go.Bar(
-                x=df_solv["solver"],
-                y=df_solv["energy"],
-                marker_color=["#2563eb", "#059669", "#7c3aed", "#d97706"],
-                text=[f"{e:.2f} kcal/mol" for e in df_solv["energy"]],
+        with cs1:
+            st.markdown("##### Minimum Ground-State Energy (kcal/mol)")
+            fig_e = go.Figure()
+            fig_e.add_trace(go.Bar(
+                x=df_solvers["solver"],
+                y=df_solvers["energy"],
+                marker_color=theme["bar_colors"],
+                text=[f"{e:.2f}" for e in df_solvers["energy"]],
                 textposition="auto"
             ))
-            fig_energy.update_layout(
+            fig_e.update_layout(
                 height=260,
                 margin=dict(l=40, r=20, t=10, b=40),
-                paper_bgcolor="#131b29",
-                plot_bgcolor="#131b29",
-                yaxis=dict(title="Energy (kcal/mol)", gridcolor="#1e293b", tickfont=dict(color="#94a3b8")),
-                xaxis=dict(tickfont=dict(color="#cbd5e1"))
+                paper_bgcolor=theme["plotly_bg"],
+                plot_bgcolor=theme["plotly_bg"],
+                yaxis=dict(title="Energy (kcal/mol)", gridcolor=theme["grid"], tickfont=dict(color=theme["axis_text"])),
+                xaxis=dict(tickfont=dict(color=theme["text"]))
             )
-            st.plotly_chart(fig_energy, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig_e, use_container_width=True, config={"displayModeBar": False})
 
-        with col_s2:
-            st.markdown('<div class="panel-heading"><span>Time-to-Solution (TTS99 in Seconds)</span><span class="panel-subtext">Logarithmic scale</span></div>', unsafe_allow_html=True)
-            fig_tts = go.Figure()
-            fig_tts.add_trace(go.Bar(
-                x=df_solv["solver"],
-                y=df_solv["tts_99"],
-                marker_color=["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"],
-                text=[f"{t:.4f} s" for t in df_solv["tts_99"]],
+        with cs2:
+            st.markdown("##### Time-to-Solution (TTS99 in Seconds)")
+            fig_t = go.Figure()
+            fig_t.add_trace(go.Bar(
+                x=df_solvers["solver"],
+                y=df_solvers["tts_99"],
+                marker_color=theme["bar_colors"],
+                text=[f"{t:.4f} s" for t in df_solvers["tts_99"]],
                 textposition="auto"
             ))
-            fig_tts.update_layout(
+            fig_t.update_layout(
                 height=260,
                 margin=dict(l=40, r=20, t=10, b=40),
-                paper_bgcolor="#131b29",
-                plot_bgcolor="#131b29",
-                yaxis=dict(title="TTS99 (s)", gridcolor="#1e293b", type="log", tickfont=dict(color="#94a3b8")),
-                xaxis=dict(tickfont=dict(color="#cbd5e1"))
+                paper_bgcolor=theme["plotly_bg"],
+                plot_bgcolor=theme["plotly_bg"],
+                yaxis=dict(title="TTS99 (s)", gridcolor=theme["grid"], type="log", tickfont=dict(color=theme["axis_text"])),
+                xaxis=dict(tickfont=dict(color=theme["text"]))
             )
-            st.plotly_chart(fig_tts, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig_t, use_container_width=True, config={"displayModeBar": False})
 
-        # Detailed Solver Comparison Table
-        st.markdown('<div class="panel-heading" style="margin-top: 14px;"><span>Solver Benchmark Metrics</span><span class="panel-subtext">Statistical Performance</span></div>', unsafe_allow_html=True)
-        solv_disp = df_solv[["solver", "energy", "wall_s", "p_success", "tts_99"]].copy()
-        solv_disp.columns = ["Algorithm Engine", "Best Energy (kcal/mol)", "Single Run Time (s)", "Success Probability (p_succ)", "TTS99 Confidence Time (s)"]
+        st.markdown("##### Annealing Solver Benchmark Metrics")
+        solv_tbl = df_solvers[["solver", "energy", "wall_s", "p_success", "tts_99"]].copy()
+        solv_tbl.columns = ["Algorithm Engine", "Best Energy (kcal/mol)", "Single Run Time (s)", "Success Probability (p_succ)", "TTS99 Confidence Time (s)"]
         st.dataframe(
-            solv_disp.style.format({
+            solv_tbl.style.format({
                 "Best Energy (kcal/mol)": "{:.4f}",
                 "Single Run Time (s)": "{:.4f}",
                 "Success Probability (p_succ)": "{:.2f}",
@@ -583,12 +569,12 @@ with tab_annealing:
 # ==============================================================================
 # Tab 4: RMSD Validation & Human-in-the-Loop Audit
 # ==============================================================================
-with tab_validation:
+with tab_audit:
     st.markdown("""
-    <div class="theory-box">
-        <strong>Crystallographic Conformation Validation:</strong> The binary assignment solution decoded from the minimum 
-        energy state is mapped back to Cartesian space and evaluated against the crystallographic ligand pose of TAM16 (8EZ) 
-        in PDB 5V3Y. An RMSD &lt; 2.0 A confirms physical docking viability.
+    <div class="academic-callout">
+        <strong>Crystallographic Validation:</strong> Ground-state binary solutions are decoded back into 3D Cartesian space 
+        and aligned against the crystallographic pose of TAM16 (ligand 8EZ) in PDB 5V3Y. An RMSD &lt; 2.0 Å validates 
+        reconstituted docking viability.
     </div>
     """, unsafe_allow_html=True)
 
@@ -596,64 +582,54 @@ with tab_validation:
         with open(metrics_path, "r", encoding="utf-8") as f:
             summary = json.load(f)
 
-        c_val1, c_val2, c_val3, c_val4 = st.columns(4)
-        c_val1.metric("Reference Receptor", str(summary.get("reference_pdb", "5V3Y")))
-        c_val1.caption("Pks13-TE crystal structure (1.98 A)")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Receptor Target", str(summary.get("reference_pdb", "5V3Y")), "Pks13-TE (1.98 Å)")
+        m2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")), "Benzofuran Core")
+        rmsd = summary.get("heavy_atom_rmsd_A", 1.34)
+        m3.metric("Heavy-Atom RMSD", f"{rmsd:.2f} Å", "Passed (< 2.0 Å)")
+        m4.metric("Constraint Violations", int(summary.get("constraint_violations", 0)), "Resolved")
 
-        c_val2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")))
-        c_val2.caption("Benzofuran-furan ester")
+    st.markdown("---")
+    st.markdown("##### Human-in-the-Loop (HITL) Decision Logging")
 
-        rmsd_num = summary.get("heavy_atom_rmsd_A", 1.34)
-        c_val3.metric("Heavy-Atom RMSD", f"{rmsd_num:.2f} A")
-        c_val3.caption("Target threshold: < 2.0 A (PASSED)")
+    ch1, ch2 = st.columns([1.2, 1.0], gap="large")
 
-        c_val4.metric("Constraint Violations", int(summary.get("constraint_violations", 0)))
-        c_val4.caption("Resolved via argmin(dE)")
+    with ch1:
+        review_mol = st.selectbox("Select Candidate for Review", options=df["mol_id"].tolist(), key="audit_select")
+        review_notes = st.text_area("Review Rationale", placeholder="Enter structural feedback, synthetic tractability notes, or pocket interaction remarks...")
 
-    st.markdown("<hr style='border-color: #1e293b; margin: 20px 0;'>", unsafe_allow_html=True)
-
-    # Human-in-the-Loop Review Controls
-    st.markdown('<div class="panel-heading"><span>Human-in-the-Loop (HITL) Decision Logging</span><span class="panel-subtext">Appends immutable audit entries to hitl_decisions.jsonl</span></div>', unsafe_allow_html=True)
-
-    col_h1, col_h2 = st.columns([1.2, 1.0], gap="large")
-
-    with col_h1:
-        hitl_mol = st.selectbox("Select Candidate for Expert Review", options=df["mol_id"].tolist(), key="hitl_select")
-        hitl_note = st.text_area("Reviewer Rationale & Observations", placeholder="Enter structural notes, synthetic feasibility observations, or specific pocket interaction details...")
-        
-        btn_pass, btn_reject = st.columns(2)
-        with btn_pass:
+        b1, b2 = st.columns(2)
+        with b1:
             if st.button("Approve for Experimental Synthesis", use_container_width=True):
                 entry = {
                     "timestamp": time.time(),
                     "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "mol_id": hitl_mol,
+                    "mol_id": review_mol,
                     "action": "APPROVED_FOR_SYNTHESIS",
-                    "note": hitl_note
+                    "note": review_notes
                 }
                 with open(audit_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry) + "\n")
-                st.success(f"Candidate {hitl_mol} approved and recorded to immutable audit log.")
+                st.success(f"Candidate {review_mol} recorded in audit trail.")
                 time.sleep(0.4)
                 st.rerun()
-
-        with btn_reject:
+        with b2:
             if st.button("Deprioritize Candidate", use_container_width=True):
                 entry = {
                     "timestamp": time.time(),
                     "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "mol_id": hitl_mol,
+                    "mol_id": review_mol,
                     "action": "DEPRIORITIZED",
-                    "note": hitl_note
+                    "note": review_notes
                 }
                 with open(audit_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry) + "\n")
-                st.warning(f"Candidate {hitl_mol} deprioritized in audit log.")
+                st.warning(f"Candidate {review_mol} deprioritized in audit trail.")
                 time.sleep(0.4)
                 st.rerun()
 
-    with col_h2:
-        st.markdown("**Logged Audit Trail (data/processed/hitl_decisions.jsonl):**")
+    with ch2:
+        st.markdown("**Historical Audit Trail Log:**")
         if audit_file.exists():
             records = []
             with open(audit_file, "r", encoding="utf-8") as f:
@@ -664,8 +640,8 @@ with tab_validation:
                         pass
             if records:
                 df_audit = pd.DataFrame(records)
-                audit_cols = [c for c in ["timestamp_iso", "mol_id", "action", "note"] if c in df_audit.columns]
-                st.dataframe(df_audit[audit_cols].tail(10), use_container_width=True)
+                cols_audit = [c for c in ["timestamp_iso", "mol_id", "action", "note"] if c in df_audit.columns]
+                st.dataframe(df_audit[cols_audit].tail(8), use_container_width=True)
             else:
                 st.caption("No review entries recorded yet.")
         else:
