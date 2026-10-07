@@ -16,6 +16,9 @@ dependencies = [
   "selfies",
   "torch",
   "streamlit",
+  "scipy",
+  "scikit-learn",
+  "simulated-bifurcation",
 ]
 
 [project.optional-dependencies]
