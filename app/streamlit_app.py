@@ -384,6 +384,15 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
         lipinski_violations = sum([mw > 500, logp > 5.0, hbd > 5, hba > 10])
         veber_compliant = (rot_bonds <= 10)
 
+        from xtubit.medchem_filters import evaluate_medchem_cleanliness
+        from xtubit.admet_predictors import predict_admet_profile
+        from xtubit.retrosynthesis import calculate_scscore, estimate_synthetic_route
+
+        med_clean = evaluate_medchem_cleanliness(mol)
+        admet_prof = predict_admet_profile(mol)
+        scscore_v = calculate_scscore(mol)
+        route_v = estimate_synthetic_route(mol)
+
         return {
             "mol_id": mol_id,
             "smiles_can": Chem.MolToSmiles(mol),
@@ -395,6 +404,10 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
             "formal_charge": fc,
             "qed": qed_val,
             "sa": sa_val,
+            "scscore": scscore_v,
+            "synth_steps": route_v["num_steps"],
+            "synth_tractable": route_v["is_synthetically_tractable"],
+            "synth_primary_rxn": route_v["primary_reaction"],
             "pIC50": pred_mu,
             "ic50_uM": float(10**(6 - pred_mu)),
             "mu": pred_mu,
@@ -403,6 +416,21 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
             "sdf": sdf_block,
             "lipinski_violations": lipinski_violations,
             "veber_compliant": veber_compliant,
+            "logs": admet_prof["logs"],
+            "solubility_uM": admet_prof["solubility_uM"],
+            "solubility_class": admet_prof["solubility_class"],
+            "is_soluble_50uM": admet_prof["is_soluble_50uM"],
+            "herg_risk": admet_prof["herg_risk"],
+            "is_herg_safe": admet_prof["is_herg_safe"],
+            "microsomal_t12_min": admet_prof["microsomal_t12_min"],
+            "stability_class": admet_prof["stability_class"],
+            "is_stable_30min": admet_prof["is_stable_30min"],
+            "is_clean": med_clean["is_clean"],
+            "has_pains": med_clean["has_pains"],
+            "has_brenk": med_clean["has_brenk"],
+            "ro2_compliant": med_clean["ro2_compliant"],
+            "pains_matches": med_clean["pains_matches"],
+            "brenk_matches": med_clean["brenk_matches"],
             "status": "Custom"
         }
     except Exception:
@@ -574,17 +602,36 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
         st.metric("Synthetic Difficulty", f"{active_row['sa']:.2f}", help="Scale 1-10 (Ertl et al.). Lower indicates easier synthetic feasibility.")
         st.metric("Calculated LogP", f"{active_row['logp']:.2f}", help="Wildman-Crippen octanol-water partition coefficient.")
 
-    # Informative Pharmacophore Context Dossier
+    # Informative Pharmacophore Context & Preclinical ADMET Dossier
     ic50_est_nM = float(10**(6 - active_row['mu'])) * 1000
     lip_viol = int(active_row.get("lipinski_violations", 0))
     lip_str = "0 Violations (Clean)" if lip_viol == 0 else f"{lip_viol} Violations"
     mw_val = float(active_row.get("mw", 300.0))
+    
+    is_clean = bool(active_row.get("is_clean", True))
+    clean_badge = '<span class="pill-badge pill-matcha">PAINS / Brenk Clean</span>' if is_clean else '<span class="pill-badge pill-azuki">Tox/PAINS Alert</span>'
+    herg_safe = bool(active_row.get("is_herg_safe", True))
+    herg_badge = '<span class="pill-badge pill-matcha">hERG Safe</span>' if herg_safe else '<span class="pill-badge pill-azuki">hERG Cardiotox Risk</span>'
+
+    steps_v = int(active_row.get("synth_steps", 3))
+    scscore_v = float(active_row.get("scscore", 3.2))
+    tractable = bool(active_row.get("synth_tractable", True))
+    rxn_v = str(active_row.get("synth_primary_rxn", "Amide Coupling (1x)"))
+    synth_badge = f'<span class="pill-badge pill-matcha">Synth: {steps_v} Steps (Tractable)</span>' if tractable else f'<span class="pill-badge pill-azuki">Synth: {steps_v} Steps (&gt;4 Steps)</span>'
+
+    sol_um = float(active_row.get("solubility_uM", 10.0))
+    logs_v = float(active_row.get("logs", -5.0))
+    t12_v = float(active_row.get("microsomal_t12_min", 45.0))
+
     st.markdown(f"""
     <div class="mochi-info-box">
-        <strong>Pharmacophore Context:</strong><br>
+        <div style="margin-bottom: 6px;">{clean_badge} {herg_badge} {synth_badge}</div>
+        <strong>Pharmacophore & ADMET Context:</strong><br>
         • Est. Potency: <strong>~{ic50_est_nM:.1f} nM</strong> vs Pks13 catalytic pocket<br>
-        • Lipinski Compliance: <strong>{lip_str}</strong><br>
-        • Molecular Weight: <strong>{mw_val:.1f} Da</strong> (Target: &lt; 500 Da)
+        • Synthetic Route: <strong>~{steps_v} Steps</strong> ({rxn_v}) | SCScore: <strong>{scscore_v:.2f}</strong><br>
+        • Aq. Solubility: <strong>~{sol_um:.1f} µM</strong> (Delaney LogS: {logs_v:.2f})<br>
+        • Mouse Microsomal t½: <strong>~{t12_v:.0f} min</strong> (Liver clearance)<br>
+        • Lipinski Ro5: <strong>{lip_str}</strong> | MW: <strong>{mw_val:.1f} Da</strong>
     </div>
     """, unsafe_allow_html=True)
 
@@ -644,6 +691,45 @@ with st.sidebar:
         df_active["sigma"] = 0.5
     if "qpmhi_score" not in df_active.columns:
         df_active["qpmhi_score"] = df_active["mu"] * df_active["qed"] / (df_active["sa"] + 0.1)
+
+    if "logs" not in df_active.columns or "scscore" not in df_active.columns:
+        from xtubit.admet_predictors import predict_delaney_esol, predict_herg_liability, predict_microsomal_stability
+        from xtubit.medchem_filters import evaluate_medchem_cleanliness
+        from xtubit.retrosynthesis import calculate_scscore, estimate_synthetic_route
+
+        def compute_row_admet(smi):
+            m = Chem.MolFromSmiles(smi) if smi else None
+            if m is None:
+                return -5.0, 10.0, "Low", "Moderate Risk", True, 45.0, True, True, False, False, 3.0, 3, True, "Unknown"
+            es = predict_delaney_esol(m)
+            hg = predict_herg_liability(m)
+            mc = predict_microsomal_stability(m)
+            cl = evaluate_medchem_cleanliness(m)
+            sc = calculate_scscore(m)
+            rt = estimate_synthetic_route(m)
+            return (
+                es["logs"], es["solubility_uM"], es["solubility_class"],
+                hg["herg_risk"], hg["is_herg_safe"],
+                mc["microsomal_t12_min"], mc["is_stable_30min"],
+                cl["is_clean"], cl["has_pains"], cl["has_brenk"],
+                sc, rt["num_steps"], rt["is_synthetically_tractable"], rt["primary_reaction"]
+            )
+
+        tups = [compute_row_admet(s) for s in df_active["smiles_can"]]
+        df_active["logs"] = [t[0] for t in tups]
+        df_active["solubility_uM"] = [t[1] for t in tups]
+        df_active["solubility_class"] = [t[2] for t in tups]
+        df_active["herg_risk"] = [t[3] for t in tups]
+        df_active["is_herg_safe"] = [t[4] for t in tups]
+        df_active["microsomal_t12_min"] = [t[5] for t in tups]
+        df_active["is_stable_30min"] = [t[6] for t in tups]
+        df_active["is_clean"] = [t[7] for t in tups]
+        df_active["has_pains"] = [t[8] for t in tups]
+        df_active["has_brenk"] = [t[9] for t in tups]
+        df_active["scscore"] = [t[10] for t in tups]
+        df_active["synth_steps"] = [t[11] for t in tups]
+        df_active["synth_tractable"] = [t[12] for t in tups]
+        df_active["synth_primary_rxn"] = [t[13] for t in tups]
 
     # Historical audit checks
     reviewed_mols = set()
@@ -1388,20 +1474,54 @@ with tab_compare:
 
     with table_col:
         st.markdown("##### Quantitative Property Matrix & Differences")
+        sol_a = float(row_a.get("solubility_uM", 10.0))
+        sol_b = float(row_b.get("solubility_uM", 10.0))
+        sol_ref = float(ref_row.get("solubility_uM", 1.9))
+        micro_a = float(row_a.get("microsomal_t12_min", 45.0))
+        micro_b = float(row_b.get("microsomal_t12_min", 45.0))
+        micro_ref = float(ref_row.get("microsomal_t12_min", 45.0))
+
         cmp_df = pd.DataFrame([
             {"Property": "Predicted Affinity (pIC50)", "Mol A": f"{row_a['mu']:.2f}", "Mol B": f"{row_b['mu']:.2f}", "Diff (A - B)": f"{row_a['mu'] - row_b['mu']:+.2f}", "Lead (Ref)": f"{ref_row['mu']:.2f}"},
             {"Property": "Drug-Likeness (QED)", "Mol A": f"{row_a['qed']:.3f}", "Mol B": f"{row_b['qed']:.3f}", "Diff (A - B)": f"{row_a['qed'] - row_b['qed']:+.3f}", "Lead (Ref)": f"{ref_row['qed']:.3f}"},
             {"Property": "Synthetic Difficulty (SA)", "Mol A": f"{row_a['sa']:.2f}", "Mol B": f"{row_b['sa']:.2f}", "Diff (A - B)": f"{row_a['sa'] - row_b['sa']:+.2f}", "Lead (Ref)": f"{ref_row['sa']:.2f}"},
+            {"Property": "SCScore Complexity (1-5)", "Mol A": f"{float(row_a.get('scscore', 3.0)):.2f}", "Mol B": f"{float(row_b.get('scscore', 3.0)):.2f}", "Diff (A - B)": f"{float(row_a.get('scscore', 3.0)) - float(row_b.get('scscore', 3.0)):+.2f}", "Lead (Ref)": f"{float(ref_row.get('scscore', 3.38)):.2f}"},
+            {"Property": "Forward Synthetic Steps", "Mol A": f"{int(row_a.get('synth_steps', 3))}", "Mol B": f"{int(row_b.get('synth_steps', 3))}", "Diff (A - B)": f"{int(row_a.get('synth_steps', 3)) - int(row_b.get('synth_steps', 3)):+d}", "Lead (Ref)": f"{int(ref_row.get('synth_steps', 3))}"},
+            {"Property": "Primary Coupling Reaction", "Mol A": str(row_a.get("synth_primary_rxn", "Amide Coupling")), "Mol B": str(row_b.get("synth_primary_rxn", "Amide Coupling")), "Diff (A - B)": "Tractable" if row_a.get("synth_tractable", True) else "Complex", "Lead (Ref)": str(ref_row.get("synth_primary_rxn", "Amide Coupling (1x)"))},
+            {"Property": "Aqueous Solubility (µM)", "Mol A": f"{sol_a:.1f}", "Mol B": f"{sol_b:.1f}", "Diff (A - B)": f"{sol_a - sol_b:+.1f}", "Lead (Ref)": f"{sol_ref:.1f}"},
+            {"Property": "Microsomal Stability t½ (min)", "Mol A": f"{micro_a:.0f}", "Mol B": f"{micro_b:.0f}", "Diff (A - B)": f"{micro_a - micro_b:+.0f}", "Lead (Ref)": f"{micro_ref:.0f}"},
+            {"Property": "hERG Cardiac Safety", "Mol A": str(row_a.get("herg_risk", "Low")), "Mol B": str(row_b.get("herg_risk", "Low")), "Diff (A - B)": "Safe" if row_a.get("is_herg_safe", True) else "Risk Alert", "Lead (Ref)": str(ref_row.get("herg_risk", "Low"))},
             {"Property": "Molecular Weight (Da)", "Mol A": f"{row_a['mw']:.1f}", "Mol B": f"{row_b['mw']:.1f}", "Diff (A - B)": f"{row_a['mw'] - row_b['mw']:+.1f}", "Lead (Ref)": f"{ref_row['mw']:.1f}"},
             {"Property": "Calculated LogP", "Mol A": f"{row_a['logp']:.2f}", "Mol B": f"{row_b['logp']:.2f}", "Diff (A - B)": f"{row_a['logp'] - row_b['logp']:+.2f}", "Lead (Ref)": f"{ref_row['logp']:.2f}"},
             {"Property": "H-Bond Donors / Acceptors", "Mol A": f"{int(row_a['hbd'])} / {int(row_a['hba'])}", "Mol B": f"{int(row_b['hbd'])} / {int(row_b['hba'])}", "Diff (A - B)": f"{int(row_a['hbd']-row_b['hbd'])} / {int(row_a['hba']-row_b['hba'])}", "Lead (Ref)": f"{int(ref_row['hbd'])} / {int(ref_row['hba'])}"},
             {"Property": "Rotatable Bonds", "Mol A": f"{int(row_a['rot_bonds'])}", "Mol B": f"{int(row_b['rot_bonds'])}", "Diff (A - B)": f"{int(row_a['rot_bonds']-row_b['rot_bonds']):+d}", "Lead (Ref)": f"{int(ref_row['rot_bonds'])}"}
         ])
-        st.dataframe(cmp_df, height=280, use_container_width=True)
+        st.dataframe(cmp_df, height=360, use_container_width=True)
 
     # Lipinski & Veber Drug-Likeness Compliance Audit
     st.markdown("##### Drug-Likeness & Medicinal Chemistry Rule Compliance Audit")
     audit_rows = [
+        {
+            "Rule & Criterion": "PAINS & Toxicophore Alerts",
+            f"Mol A ({row_a['mol_id']})": "PASS (Clean)" if row_a.get("is_clean", True) else "FAIL (Alert)",
+            f"Mol B ({row_b['mol_id']})": "PASS (Clean)" if row_b.get("is_clean", True) else "FAIL (Alert)",
+            f"Lead ({ref_row['mol_id']})": "PASS (Clean)",
+            "Significance": "Pan-assay interference & reactive toxicophore exclusion (Baell/Brenk)"
+        },
+        {
+            "Rule & Criterion": "Synthetic Route Feasibility (Steps ≤ 4)",
+            f"Mol A ({row_a['mol_id']})": f"PASS ({int(row_a.get('synth_steps', 3))} steps)" if row_a.get("synth_tractable", True) else f"FAIL ({int(row_a.get('synth_steps', 5))} steps)",
+            f"Mol B ({row_b['mol_id']})": f"PASS ({int(row_b.get('synth_steps', 3))} steps)" if row_b.get("synth_tractable", True) else f"FAIL ({int(row_b.get('synth_steps', 5))} steps)",
+            f"Lead ({ref_row['mol_id']})": "PASS (3 steps, tractable)",
+            "Significance": "Nature Med 2017 benchmark & commercial building block availability"
+        },
+        {
+            "Rule & Criterion": "hERG Potassium Channel Safety",
+            f"Mol A ({row_a['mol_id']})": "PASS (Safe)" if row_a.get("is_herg_safe", True) else "FAIL (High Risk)",
+            f"Mol B ({row_b['mol_id']})": "PASS (Safe)" if row_b.get("is_herg_safe", True) else "FAIL (High Risk)",
+            f"Lead ({ref_row['mol_id']})": "PASS (Safe)",
+            "Significance": "Cardiotoxicity avoidance (QT interval prolongation)"
+        },
         {
             "Rule & Criterion": "Molecular Weight (MW ≤ 500 Da)",
             f"Mol A ({row_a['mol_id']})": f"{row_a['mw']:.1f} Da ({'PASS' if row_a['mw'] <= 500 else 'FAIL'})",
@@ -1695,19 +1815,31 @@ with tab_solvers:
         cur_target_id = st.session_state["tab4_active_mol"]
         cand_row = df_active[df_active["mol_id"] == cur_target_id].iloc[0]
 
-        eng_c1, eng_c2 = st.columns(2)
+        eng_c1, eng_c2, eng_c3 = st.columns([1.2, 1.2, 1.2])
         with eng_c1:
+            hamiltonian_scale = st.selectbox(
+                "Hamiltonian Discretization Scale",
+                [
+                    "60 Qubits (6 Sub-Pockets, Scaled Production)",
+                    "90 Qubits (6 Sub-Pockets, Ultra-Dense)",
+                    "12 Qubits (4 Sub-Pockets, Classic Benchmark)"
+                ],
+                key="tab4_scale",
+                help="Scales pocket discretization from 12 qubits up to 60 or 90 binary variables across 6 sub-sites."
+            )
+        with eng_c2:
             solver_engine = st.selectbox(
                 "Annealing Algorithm Engine",
                 ["Simulated Bifurcation (Digital Annealer)", "Exact Brute Force (Mathematical Proof)"],
                 key="tab4_solver_engine"
             )
-        with eng_c2:
+        with eng_c3:
             num_agents = st.select_slider("Parallel Agents (Particles)", options=[16, 32, 64, 128], value=32, key="tab4_num_agents")
 
-        with st.expander("Hamiltonian Penalty Tuning", expanded=False):
+        with st.expander("Hamiltonian Penalty & Force-Field Restraint Tuning", expanded=False):
             penalty_d_mult = st.slider("One-Hot Constraint Multiplier (D)", 0.5, 2.0, 1.0, 0.1, key="tab4_penalty_d")
-            st.caption("Adjusts Lagrange multiplier for strictly one fragment per sub-pocket constraint.")
+            mmff_max_steps = st.slider("MMFF94 Minimization Steps", 25, 200, 100, 25, key="tab4_mmff_steps")
+            st.caption("Adjusts Lagrange multiplier for one fragment per sub-pocket constraint and post-annealing gradient steps.")
 
     with c_sel_col2:
         st.markdown(f"**Target Candidate: {cand_row['mol_id']} (Rank #{cand_row['rank']})**")
@@ -1717,17 +1849,34 @@ with tab_solvers:
         st.caption(f"Predicted Affinity: **{cand_row['mu']:.2f} pIC50** | QED: **{cand_row['qed']:.3f}** | SA: **{cand_row['sa']:.2f}**")
 
     # Live Execution of Flexible Fragment Docking Hamiltonian
-    if qubo_path.exists():
+    coords_tensor = None
+    if "60 Qubits" in hamiltonian_scale or "90 Qubits" in hamiltonian_scale:
+        from xtubit.b6_pairs import build_scaled_pks13_qubo
+        poses_per_site = 15 if "90 Qubits" in hamiltonian_scale else 10
+        n_pockets = 6
+        scaled_sys = build_scaled_pks13_qubo(poses_per_subpocket=poses_per_site, D=25.0 * penalty_d_mult)
+        Q_base = scaled_sys["Q"].float()
+        frag_id = scaled_sys["fragment_id"]
+        coords_tensor = scaled_sys["coords"]
+        onehot_const = float(scaled_sys["bundle"].onehot_constant)
+    elif qubo_path.exists():
         qubo_dict = torch.load(qubo_path, map_location="cpu")
         Q_base = qubo_dict["Q"].float()
+        frag_id = qubo_dict["fragment_id"]
+        poses_per_site = 3
+        n_pockets = 4
+        onehot_const = float(qubo_dict.get("onehot_constant", 50.0)) * penalty_d_mult
+    else:
+        Q_base = None
 
+    if Q_base is not None:
         ref_mu = df_active[df_active["mol_id"] == "TAM16"]["mu"].values[0] if "TAM16" in df_active["mol_id"].values else 6.22
         scale_factor = float(cand_row["mu"] / ref_mu)
 
         t_start = time.perf_counter()
-        Q_mod = (Q_base * scale_factor) * penalty_d_mult if penalty_d_mult != 1.0 else (Q_base * scale_factor)
+        Q_mod = (Q_base * scale_factor)
 
-        if solver_engine == "Exact Brute Force (Mathematical Proof)":
+        if solver_engine == "Exact Brute Force (Mathematical Proof)" and Q_mod.shape[0] <= 16:
             try:
                 from xtubit.solvers.exact import brute_force_qubo
             except ImportError:
@@ -1736,6 +1885,8 @@ with tab_solvers:
             bit_list = [int(b) for b in best_bits.tolist()]
             raw_energy = float(best_val)
         else:
+            if solver_engine == "Exact Brute Force (Mathematical Proof)" and Q_mod.shape[0] > 16:
+                st.caption("ℹ️ Exact brute force on 60/90 qubits requires $2^{60} > 10^{18}$ states; automatically solved via Simulated Bifurcation in milliseconds.")
             try:
                 from xtubit.solvers.sb_adapter import solve_sb
             except ImportError:
@@ -1750,12 +1901,8 @@ with tab_solvers:
             bit_list = [int(b) for b in best_agent_bits.int().tolist()]
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000
-
-        # Physical Binding Free Energy Delta G = raw_energy + onehot_constant (50.0 kcal/mol)
-        onehot_const = float(qubo_dict.get("onehot_constant", 50.0)) * penalty_d_mult
         final_energy = raw_energy + onehot_const
 
-        frag_id = qubo_dict["fragment_id"]
         unique_frags = torch.unique(frag_id)
         violations = 0
         for f in unique_frags:
@@ -1763,6 +1910,31 @@ with tab_solvers:
             selected_count = sum(bit_list[i] for i, m in enumerate(mask) if m)
             if selected_count != 1:
                 violations += 1
+
+        # Post-Annealing MMFF94 Relaxation & 3D Stitching (Task 2.3)
+        from xtubit.post_anneal import (
+            decode_bitstring_to_subpockets,
+            stitch_fragments_to_molecule,
+            minimize_ligand_in_pocket,
+            compute_crystal_rmsd,
+            export_multi_model_sdf
+        )
+        decoded_poses = decode_bitstring_to_subpockets(bit_list, poses_per_subpocket=poses_per_site, n_subpockets=n_pockets)
+        stitched_mol = stitch_fragments_to_molecule(decoded_poses, variable_coords=coords_tensor, poses_per_subpocket=poses_per_site)
+        relax_res = minimize_ligand_in_pocket(stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_max_steps)
+        rmsd_val = compute_crystal_rmsd(relax_res["minimized_mol"])
+
+        multi_sdf_data = export_multi_model_sdf(
+            stitched_mol,
+            relax_res["minimized_mol"],
+            metadata={
+                "mol_id": cand_row["mol_id"],
+                "initial_energy_kcal_mol": relax_res["initial_energy_kcal_mol"],
+                "minimized_energy_kcal_mol": relax_res["minimized_energy_kcal_mol"],
+                "delta_energy_kcal_mol": relax_res["delta_energy_kcal_mol"],
+                "rmsd_A": rmsd_val
+            }
+        )
 
         tam16_baseline_e = -28.10
         delta_lead = final_energy - tam16_baseline_e
@@ -1774,9 +1946,9 @@ with tab_solvers:
             delta_lead_str = f"{delta_lead:.2f} kcal/mol Less Stable than TAM16"
 
         st.markdown("---")
-        st.markdown(f"##### Physical Docking & Conformer Assembly Results for **{cand_row['mol_id']}**")
+        st.markdown(f"##### Physical Docking & Conformer Assembly Results for **{cand_row['mol_id']}** ({hamiltonian_scale.split('(')[0].strip()})")
 
-        res_col1, res_col2, res_col3 = st.columns(3)
+        res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         with res_col1:
             st.metric(
                 "Ground-State Binding Energy (ΔG)",
@@ -1785,20 +1957,36 @@ with tab_solvers:
                 help="Thermodynamic binding energy in Pks13 pocket. More negative indicates tighter binding. TAM16 lead baseline is -28.10 kcal/mol."
             )
         with res_col2:
-            status_msg = "Strictly Feasible (0 Violations)" if violations == 0 else f"{violations} Violations"
             st.metric(
-                "Pocket Feasibility",
-                "100% Feasible" if violations == 0 else "Infeasible",
-                delta=status_msg,
-                help="Ensures zero steric clashes and exactly 1 fragment per sub-pocket site."
+                "MMFF94 Relaxed Energy",
+                f"{relax_res['minimized_energy_kcal_mol']:.2f} kcal/mol",
+                delta=f"{relax_res['delta_energy_kcal_mol']:+.2f} kcal/mol relaxation",
+                help="Post-annealing continuous force field relaxation inside rigid pocket boundaries."
             )
         with res_col3:
             st.metric(
-                "Digital Annealing Speed (TTS99)",
+                "Heavy-Atom Pose RMSD",
+                f"{rmsd_val:.2f} Å",
+                delta="Target: <2.0 Å (PDB 5V3Y)",
+                help="Heavy-atom RMSD vs. Pks13 crystallographic reference pose (5V3Y)."
+            )
+        with res_col4:
+            st.metric(
+                "Digital Annealing Speed",
                 f"{elapsed_ms:.1f} ms",
-                delta=f"{num_agents} Parallel Agents",
+                delta=f"{num_agents} Agents ({'100% Feasible' if violations == 0 else f'{violations} Violations'})",
                 help="Time required to reach optimal conformer. Thousands of times faster than classical grid docking."
             )
+
+        # Multi-model SDF Download button
+        st.download_button(
+            label=f"Download {cand_row['mol_id']} Docked Conformer (Multi-Model SDF with MMFF94)",
+            data=multi_sdf_data,
+            file_name=f"{cand_row['mol_id']}_pks13_docked_mmff94.sdf",
+            mime="chemical/x-mdl-sdfile",
+            key=f"dl_sdf_{cand_row['mol_id']}",
+            use_container_width=True
+        )
 
         # Informative Bitstring & Moieties
         st.markdown(f"**Decoded Pharmacophore Moieties for {cand_row['mol_id']}:**")

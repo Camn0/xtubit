@@ -54,7 +54,13 @@ def sa_score(mol, allow_fallback: bool = False):
 
 
 def featurize(mol, mol_id: str, source: str = "", allow_sa_fallback: bool = True):
+    from .medchem_filters import evaluate_medchem_cleanliness
+    from .admet_predictors import predict_admet_profile
+    from .retrosynthesis import calculate_scscore, estimate_synthetic_route
     smi = Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
+    clean_info = evaluate_medchem_cleanliness(mol)
+    admet_info = predict_admet_profile(mol)
+    route_info = estimate_synthetic_route(mol)
     return {
         "mol_id": mol_id,
         "smiles_can": smi,
@@ -62,12 +68,25 @@ def featurize(mol, mol_id: str, source: str = "", allow_sa_fallback: bool = True
         "scaffold": MurckoScaffold.MurckoScaffoldSmiles(mol=mol),
         "qed": float(QED.qed(mol)),
         "sa": float(sa_score(mol, allow_fallback=allow_sa_fallback)),
+        "scscore": float(calculate_scscore(mol)),
+        "synth_steps": int(route_info["num_steps"]),
+        "synth_tractable": bool(route_info["is_synthetically_tractable"]),
+        "synth_reaction": str(route_info["primary_reaction"]),
         "mw": float(Descriptors.MolWt(mol)),
         "logp": float(Crippen.MolLogP(mol)),
         "hbd": int(Lipinski.NumHDonors(mol)),
         "hba": int(Lipinski.NumHAcceptors(mol)),
         "rot_bonds": int(Lipinski.NumRotatableBonds(mol)),
         "formal_charge": int(sum(a.GetFormalCharge() for a in mol.GetAtoms())),
+        "is_clean": bool(clean_info["is_clean"]),
+        "has_pains": bool(clean_info["has_pains"]),
+        "has_brenk": bool(clean_info["has_brenk"]),
+        "pains_matches": clean_info["pains_matches"],
+        "brenk_matches": clean_info["brenk_matches"],
+        "esol_logs": float(admet_info["esol_logs"]),
+        "solubility_um": float(admet_info["solubility_um"]),
+        "herg_safe": bool(admet_info["herg_safe"]),
+        "microsomal_t12": float(admet_info["microsomal_t12_min"]),
         "source": source,
     }
 
