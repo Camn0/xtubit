@@ -99,7 +99,7 @@ def evaluate_candidate_external_physics(
 
     # Calculate post-repair physical energy
     bit_list = [int(b) for b in repaired_bits.int().tolist()]
-    final_qubo_energy = float((repaired_bits @ Q_mod @ repaired_bits).item()) + onehot_const
+    final_qubo_energy = float((repaired_bits @ Q_mod @ repaired_bits).item()) + (scale_factor * onehot_const)
     post_violations = sum(1 for f in unique_frags if sum(bit_list[i] for i, m in enumerate(frag_id == f) if m) != 1)
 
     # 3. Continuous 3D Topology Stitching & MMFF94 Force Field Relaxation

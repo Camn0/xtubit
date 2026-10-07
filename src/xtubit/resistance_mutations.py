@@ -31,7 +31,25 @@ PKS13_RESISTANCE_VARIANTS: Dict[str, Dict[str, Any]] = {
         "dG_shift_anchor": 0.0,
         "dG_shift_catalytic": +3.80,  # Loses key carboxylate H-bond
         "dG_shift_channel": +0.40,
-        "clinical_prevalence": "High (Primary in vitro escape mutation under TAM16 pressure)",
+        "clinical_prevalence": "High (Primary in vitro escape mutation under TAM16 pressure, Aggarwal 2017)",
+    },
+    "Asp1607Asn": {
+        "name": "Asp1607Asn Vestibule Variant",
+        "mutation": "Asp1607 -> Asn1607",
+        "mechanism": "Electrostatic perturbation at active-site entrance vestibule (Aggarwal et al. 2017 Cell)",
+        "dG_shift_anchor": 0.0,
+        "dG_shift_catalytic": +2.10,
+        "dG_shift_channel": +0.60,
+        "clinical_prevalence": "High (Observed in laboratory serial-passage selection under TAM16)",
+    },
+    "Asp1644Tyr": {
+        "name": "Asp1644Tyr Steric Occlusion Variant",
+        "mutation": "Asp1644 -> Tyr1644",
+        "mechanism": "Bulky aromatic steric clash in the catalytic triad cleft (Aggarwal 2017 / Krieger 2024)",
+        "dG_shift_anchor": 0.0,
+        "dG_shift_catalytic": +4.60,
+        "dG_shift_channel": +0.90,
+        "clinical_prevalence": "Moderate (High-level resistance variant with severe binding penalty)",
     },
     "Asn1640Ala": {
         "name": "Asn1640Ala Tunnel Shift",

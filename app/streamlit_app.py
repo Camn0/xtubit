@@ -2059,8 +2059,8 @@ with tab_solvers:
     <div class="mochi-info-box">
         <strong>What Does Tab 4 Do & Which Numbers Reflect the Product?</strong><br>
         • <strong>The Purpose of Tab 4:</strong> While Tab 1 screens candidate molecules from 2D chemical formulas, Tab 4 performs <strong>physical 3D fragment-assembly docking</strong> in the Pks13 catalytic pocket (PDB 5V3Y) using parallel tensor physics (QUBO/Ising model).<br>
-        • <strong>Ground-State Energy (kcal/mol) — The Primary Output Score:</strong> This is the thermodynamic binding free energy (ΔG) of the optimal conformer. <em>Lower (more negative) is better</em>. A value ≤ -25 kcal/mol indicates tight, potent binding. If it is more negative than the co-crystallized clinical lead TAM16 (-28.10 kcal/mol), the candidate binds more stably than the reference lead.<br>
-        • <strong>Pocket Feasibility:</strong> Must be <em>Strictly Feasible (0 Violations)</em> — mathematically proves that exactly 1 chemical fragment occupies each of the 4 pocket sub-sites with zero steric clashes.<br>
+        • <strong>Ground-State Energy (kcal/mol) — The Primary Output Score:</strong> This is the thermodynamic binding free energy (ΔG) of the optimal conformer. <em>Lower (more negative) is better</em>. Calibrated to the standard Gibbs isotherm (ΔG = -1.364 · pIC50 at 298.15 K). If it is more negative than the co-crystallized clinical lead TAM16 (-9.17 kcal/mol), the candidate binds with higher thermodynamic affinity than the reference lead.<br>
+        • <strong>Pocket Feasibility:</strong> Must be <em>Strictly Feasible (0 Violations)</em> — mathematically proves that exactly 1 chemical fragment occupies each pocket sub-site with zero steric clashes.<br>
         • <strong>Time-to-Solution (TTS99):</strong> Finding the optimal conformer in <strong>milliseconds (< 0.2 s)</strong> via digital annealing vs. 45+ minutes of classical CPU grid docking.
     </div>
     """, unsafe_allow_html=True)

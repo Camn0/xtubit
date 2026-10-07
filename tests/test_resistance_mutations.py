@@ -8,6 +8,8 @@ def test_resistance_variants_dictionary():
     """Verify all 3 clinically relevant Pks13 escape variants exist."""
     assert "WT" in PKS13_RESISTANCE_VARIANTS
     assert "Asp1644Gly" in PKS13_RESISTANCE_VARIANTS
+    assert "Asp1607Asn" in PKS13_RESISTANCE_VARIANTS
+    assert "Asp1644Tyr" in PKS13_RESISTANCE_VARIANTS
     assert "Asn1640Ala" in PKS13_RESISTANCE_VARIANTS
     assert "Phe1585Leu" in PKS13_RESISTANCE_VARIANTS
 
@@ -31,7 +33,7 @@ def test_candidate_resistance_profile_evaluation():
     assert res["mol_id"] == "TAM16"
     assert "overall_resilience_rating" in res
     assert "mean_resistance_penalty_kcal_mol" in res
-    assert len(res["variant_profiles"]) == 4
+    assert len(res["variant_profiles"]) == 6
 
     wt_profile = [p for p in res["variant_profiles"] if p["variant_id"] == "WT"][0]
     assert wt_profile["delta_delta_G_kcal_mol"] == 0.0
