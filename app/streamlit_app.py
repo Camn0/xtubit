@@ -1979,6 +1979,77 @@ with tab_conformer:
             if st.session_state.get("_just_added_analogue") == ca_mol_id:
                 st.success(f"**{ca_mol_id}** is now active in screening library! Visible in Tab 1, Tab 2, and Tab 4.")
 
+    # ==========================================================================
+    # Paulson Lab Generative MOBO Analog Engine (Multi-Objective Evolution)
+    # ==========================================================================
+    st.markdown("---")
+    st.markdown("##### Generative MOBO Analog Engine (Paulson Lab Pipeline)")
+    st.caption("Active in silico fragment-based chemical evolution adapted from Paulson Lab (Generative_MOBO_qPMHI). Mines chemical fragments from Pks13 clinical leads (TAM16, X20403), applies SAR-informed mutation & biaryl crossover, and performs Bayesian GNN surrogate evaluation with multi-objective qPMHI Pareto ranking.")
+
+    g_col1, g_col2, g_col3 = st.columns([1.5, 1.0, 1.0])
+    with g_col1:
+        seed_choices = st.multiselect(
+            "Parent Seed Compounds for Evolution",
+            options=df_active["mol_id"].tolist(),
+            default=[active_mol_id] if active_mol_id in df_active["mol_id"].tolist() else [df_active["mol_id"].iloc[0]],
+            help="Select one or more parent scaffolds to mine fragments and drive genetic crossover."
+        )
+    with g_col2:
+        n_generate = st.slider("Analog Generation Batch Size", min_value=3, max_value=15, value=5, step=1)
+    with g_col3:
+        st.write("")
+        st.write("")
+        run_mobo_gen = st.button("Generate & Screen Analogs via MOBO", use_container_width=True)
+
+    if "mobo_generated_df" not in st.session_state:
+        st.session_state["mobo_generated_df"] = None
+
+    if run_mobo_gen:
+        with st.spinner("Mining fragments, generating novel analogs, and evaluating Bayesian surrogate..."):
+            from xtubit.generative_mobo import generate_analog_population, screen_and_rank_analogs
+            seed_smis = df_active[df_active["mol_id"].isin(seed_choices)]["smiles_can"].tolist()
+            if not seed_smis:
+                seed_smis = [active_row["smiles_can"]]
+            pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000)
+            if pop:
+                mobo_res_df = screen_and_rank_analogs(pop)
+                st.session_state["mobo_generated_df"] = mobo_res_df
+                st.success(f"Generated and evaluated {len(mobo_res_df)} novel analogs across Pareto frontier!")
+            else:
+                st.warning("No unique analogs could be generated from the selected seeds. Try adding more seed compounds.")
+
+    if st.session_state.get("mobo_generated_df") is not None:
+        mobo_df = st.session_state["mobo_generated_df"]
+        st.markdown(f"###### MOBO Ranked Analogs ({len(mobo_df)} Generated Leads)")
+        
+        for idx, row in mobo_df.iterrows():
+            with st.container():
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e8e4dc; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; color: #292524; font-size: 14px;">Rank #{int(row['mobo_rank'])}: {row['mol_id']}</span>
+                        <span class="pill-badge pill-purple">PMHI: {safe_float(row['qpmhi_score']):.4f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_m1, c_m2, c_m3, c_m4 = st.columns([1.0, 1.2, 1.2, 1.0])
+                with c_m1:
+                    m_svg = generate_2d_svg(row["smiles_can"], width=180, height=105)
+                    if m_svg:
+                        components.html(render_svg_html(m_svg, height=110), height=115)
+                with c_m2:
+                    st.metric("Predicted pIC50 (μ ± σ)", f"{row['mu']:.2f} ± {row['sigma']:.2f}")
+                    st.caption(f"Origin: {row.get('origin', 'De-novo')}")
+                with c_m3:
+                    st.metric("Aqueous Solubility", f"{safe_float(row.get('solubility_um', 50)):.1f} μM")
+                    h_badge = "Safe" if row.get("herg_safe", True) else "Risk"
+                    st.caption(f"Cardiac: {h_badge} | QED: {safe_float(row.get('qed', 0.5)):.3f}")
+                with c_m4:
+                    if st.button("Add to Active Library", key=f"add_mobo_{idx}", use_container_width=True):
+                        add_custom_analogue_to_lib(row.to_dict())
+                        st.rerun()
+
 # ==============================================================================
 # Tab 4: Digital Annealing Studio & Live QUBO Simulator
 # ==============================================================================
