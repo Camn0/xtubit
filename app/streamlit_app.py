@@ -515,6 +515,9 @@ def add_custom_analogue_to_lib(ca_dict: dict):
 def on_dataset_change():
     """Callback fired immediately when dataset selection changes."""
     st.session_state.pop("sb_active_mol", None)
+    st.session_state.pop("feedback_updated_df", None)
+    st.session_state.pop("last_feedback_res", None)
+    st.session_state.pop("last_feedback_mol", None)
 
 def reset_filters():
     """Reset all screening filters to default."""
@@ -682,6 +685,10 @@ with st.sidebar:
             st.info("Upload a dataset or browse default library.")
             df_active = pd.read_parquet(base_data_path)
 
+    # Propagate 2nd-Degree External Physics Feedback if active
+    if st.session_state.get("feedback_updated_df") is not None:
+        df_active = st.session_state["feedback_updated_df"].copy()
+
     # Ensure required columns exist
     if "rank" not in df_active.columns:
         df_active["rank"] = range(1, len(df_active) + 1)
@@ -693,6 +700,7 @@ with st.sidebar:
         df_active["qpmhi_score"] = df_active["mu"] * df_active["qed"] / (df_active["sa"] + 0.1)
 
     if "logs" not in df_active.columns or "scscore" not in df_active.columns:
+        from rdkit import Chem
         from xtubit.admet_predictors import predict_delaney_esol, predict_herg_liability, predict_microsomal_stability
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
         from xtubit.retrosynthesis import calculate_scscore, estimate_synthetic_route
@@ -832,6 +840,18 @@ tab_screening, tab_compare, tab_conformer, tab_solvers, tab_audit = st.tabs([
 # Tab 1: Multi-Dimensional Discovery & Filtering Workbench (LiveDesign Style)
 # ==============================================================================
 with tab_screening:
+    if st.session_state.get("feedback_updated_df") is not None:
+        last_fb = st.session_state.get("last_feedback_res", {})
+        fb_mol = last_fb.get("evaluated_mol_id", "Evaluated Compound")
+        gap_val = last_fb.get("reality_gap", 0.0)
+        red_pct = last_fb.get("target_sigma_reduction_pct", 0.0)
+        st.info(
+            f"🔬 **2nd-Degree External Physics Feedback Active ({fb_mol})**: "
+            f"Posterior calibrated via 60-qubit simulated bifurcation + MMFF94 force field. "
+            f"Reality Gap: `{gap_val:+.2f} pIC50` | Epistemic Uncertainty Reduction: `-{red_pct:.1f}% σ`. "
+            f"The Pareto frontier reflects empirical 3D pocket thermodynamics rather than surrogate self-feeding echo chambers."
+        )
+
     # Quick Scaffold Category Filter Chips
     st.caption("Quick Scaffold Category Filters:")
     scaff_cols = st.columns(6)
@@ -2074,6 +2094,98 @@ with tab_solvers:
             )
             if st.session_state.get("_tab4_pushed_tab2") == cand_row["mol_id"]:
                 st.success(f"Loaded {cand_row['mol_id']} and TAM16 into Tab 2 Comparison Matrix!")
+
+        # ==============================================================================
+        # 2nd-Degree External Physics Feedback Loop (Non-Self-Feeding Grounding)
+        # ==============================================================================
+        st.markdown("---")
+        st.markdown("##### 2nd-Degree External Physics Feedback Loop (Non-Self-Feeding Grounding)")
+        st.caption(
+            "Translational principle: 1st-degree surrogate models trained on their own pseudo-labels drift into severe confirmation bias "
+            "('hallucinated grease balls'). In contrast, this **2nd-degree feedback loop** uses independent 3D pocket physics "
+            "(scaled Hamiltonian + MMFF94 force field) as an external ground-truth oracle to compute the **Reality Gap**, "
+            "recalibrate the Bayesian posterior, reduce epistemic uncertainty, and re-order the Pareto screening pool."
+        )
+
+        pIC50_phys = float(np.clip(-final_energy / 4.15, 3.5, 9.5))
+        prior_cand_mu = float(cand_row.get("mu", 6.5))
+        reality_gap = pIC50_phys - prior_cand_mu
+
+        fb_col_btn, fb_col_rst = st.columns([3, 1])
+        with fb_col_btn:
+            if st.button(
+                f"Execute 2nd-Degree Feedback for {cand_row['mol_id']} (Update Bayesian Surrogate from 3D Pocket Mechanics)",
+                key=f"btn_fb_{cand_row['mol_id']}",
+                type="primary",
+                use_container_width=True
+            ):
+                from xtubit.external_feedback_loop import execute_second_degree_feedback_update
+                fb_res = execute_second_degree_feedback_update(
+                    df_active=df_active,
+                    evaluated_mol_id=cand_row["mol_id"],
+                    physical_pIC50=pIC50_phys
+                )
+                st.session_state["feedback_updated_df"] = fb_res["updated_df"]
+                st.session_state["last_feedback_res"] = fb_res
+                st.session_state["last_feedback_mol"] = cand_row["mol_id"]
+                st.rerun()
+
+        with fb_col_rst:
+            if st.session_state.get("feedback_updated_df") is not None:
+                if st.button("Reset Posterior to Prior", key="btn_fb_reset", use_container_width=True):
+                    st.session_state.pop("feedback_updated_df", None)
+                    st.session_state.pop("last_feedback_res", None)
+                    st.session_state.pop("last_feedback_mol", None)
+                    st.rerun()
+
+        last_fb = st.session_state.get("last_feedback_res")
+        if last_fb is not None and last_fb.get("evaluated_mol_id") == cand_row["mol_id"]:
+            st.success(f"2nd-Degree External Physics Feedback Active for **{cand_row['mol_id']}**!")
+            fb_m1, fb_m2, fb_m3, fb_m4 = st.columns(4)
+            with fb_m1:
+                st.metric(
+                    "External 3D Physical pIC50",
+                    f"{last_fb['external_physical_pIC50']:.2f}",
+                    delta=f"ΔG: {final_energy:.2f} kcal/mol + MMFF: {relax_res['minimized_energy_kcal_mol']:.2f}",
+                    help="Potency computed from 60-qubit simulated bifurcation and MMFF94 force field relaxation."
+                )
+            with fb_m2:
+                st.metric(
+                    "Prior 2D Surrogate Mean (μ)",
+                    f"{last_fb['prior_surrogate_mu']:.2f}",
+                    delta="Before Physical Evidence",
+                    help="2D GNN surrogate belief prior to 3D pocket docking."
+                )
+            with fb_m3:
+                gap_val = last_fb["reality_gap"]
+                gap_delta = "Pocket Fit Surplus" if gap_val >= 0 else "Steric / Pocket Penalty"
+                st.metric(
+                    "Reality Gap (Physical - Prior)",
+                    f"{gap_val:+.2f} pIC50",
+                    delta=gap_delta,
+                    help="Discrepancy between 2D surrogate prediction and true 3D pocket mechanics."
+                )
+            with fb_m4:
+                st.metric(
+                    "Epistemic Uncertainty Reduction",
+                    f"{last_fb['target_sigma_reduction_pct']:.1f}%",
+                    delta=f"-{last_fb['mean_uncertainty_reduction']:.3f} avg Δσ",
+                    help="Epistemic uncertainty reduction across chemical space from external evidence."
+                )
+
+            # Rank shifts table
+            st.markdown(f"**Screening Pool Re-Ranking Impact ({cand_row['mol_id']} Evidence):**")
+            shifts_df = pd.DataFrame(last_fb["rank_shifts"])
+            shifts_df.columns = ["Molecule ID", "Prior Rank", "Calibrated Rank", "Rank Shift"]
+            st.dataframe(shifts_df, use_container_width=True)
+        else:
+            prev_c1, prev_c2, prev_c3 = st.columns(3)
+            with prev_c1:
+                st.caption(f"**Computed External Physical Potency:** `{pIC50_phys:.2f} pIC50` (from 60-Qubit QUBO + MMFF94)")
+            with prev_c2:
+                st.caption(f"**Prior Surrogate Mean:** `{prior_cand_mu:.2f} pIC50` (±{float(cand_row.get('sigma', 0.5)):.2f} σ)")
+            with prev_c3:
+                st.caption(f"**Uncalibrated Reality Gap:** `{reality_gap:+.2f} pIC50` ({'Affinity gain from favorable pocket fit' if reality_gap >= 0 else 'Affinity penalty from steric / pocket mismatch'})")
     else:
         st.info("QUBO matrix file not found.")
 
