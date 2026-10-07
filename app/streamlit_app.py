@@ -2129,11 +2129,17 @@ with tab_conformer:
 
     if run_mobo_gen:
         with st.spinner("Mining fragments, generating novel analogs, and evaluating Bayesian surrogate..."):
+            import importlib
+            import xtubit.generative_mobo
+            importlib.reload(xtubit.generative_mobo)
             from xtubit.generative_mobo import generate_analog_population, screen_and_rank_analogs
             seed_smis = df_active[df_active["mol_id"].isin(seed_choices)]["smiles_can"].tolist()
             if not seed_smis:
                 seed_smis = [active_row["smiles_can"]]
-            pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000, strategy=strategy_choice)
+            try:
+                pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000, strategy=strategy_choice)
+            except TypeError:
+                pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000)
             if pop:
                 mobo_res_df = screen_and_rank_analogs(pop)
                 # Apply custom Pareto weighting
