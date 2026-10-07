@@ -527,6 +527,10 @@ def reset_filters():
     st.session_state["f_mw"] = (150, 600)
     st.session_state["f_logp"] = (-1.0, 6.5)
     st.session_state["f_lipinski"] = False
+    st.session_state["f_clean"] = False
+    st.session_state["f_herg"] = False
+    st.session_state["f_micro"] = False
+    st.session_state["f_tractable"] = False
     st.session_state["f_search"] = ""
 
 def swap_cmp_molecules():
@@ -923,6 +927,17 @@ with tab_screening:
             mw_range = st.slider("Molecular Weight (Da)", 150, 650, (150, 600), 25, key="f_mw" if "f_mw" in st.session_state else None)
             logp_range = st.slider("Calculated LogP", -1.0, 7.0, (-1.0, 6.5), 0.5, key="f_logp" if "f_logp" in st.session_state else None)
 
+        st.markdown("**Preclinical MedChem & ADMET Quality Gates:**")
+        qg1, qg2, qg3, qg4 = st.columns(4)
+        with qg1:
+            clean_only = st.checkbox("PAINS & Brenk Clean Only", value=False, key="f_clean", help="Exclude compounds triggering reactive toxicophores or pan-assay interference alerts.")
+        with qg2:
+            herg_only = st.checkbox("hERG Cardiac Safe Only", value=False, key="f_herg", help="Filter for IC50 > 10 µM / low predicted cardiotoxicity liability.")
+        with qg3:
+            micro_only = st.checkbox("Metabolically Stable Only (t½ > 30m)", value=False, key="f_micro", help="Require mouse liver microsomal stability half-life > 30 minutes.")
+        with qg4:
+            tractable_only = st.checkbox("Synthetically Tractable Only (≤4 Steps)", value=False, key="f_tractable", help="Exclude compounds requiring more than 4 forward synthetic steps from commercial starting materials.")
+
         rule_col1, rule_col2 = st.columns(2)
         with rule_col1:
             lipinski_only = st.checkbox("Lipinski Rule of 5 Compliant Only (0 Violations)", value=False, key="f_lipinski" if "f_lipinski" in st.session_state else None)
@@ -966,6 +981,18 @@ with tab_screening:
             (df_filtered["mw"] <= 500) & (df_filtered["logp"] <= 5.0) &
             (df_filtered["hbd"] <= 5) & (df_filtered["hba"] <= 10)
         ]
+
+    if clean_only and "is_clean" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["is_clean"] == True]
+
+    if herg_only and "is_herg_safe" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["is_herg_safe"] == True]
+
+    if micro_only and "is_stable_30min" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["is_stable_30min"] == True]
+
+    if tractable_only and "synth_tractable" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["synth_tractable"] == True]
 
     if search_id:
         df_filtered = df_filtered[df_filtered["mol_id"].str.contains(search_id, case=False)]
@@ -2392,6 +2419,128 @@ with tab_audit:
                 st.caption("No review entries recorded yet.")
         else:
             st.caption("No review entries recorded yet.")
+
+    # ==============================================================================
+    # Turnkey Wet-Lab Synthesis Order Dossier & CRO Procurement (Task 4.1)
+    # ==============================================================================
+    st.markdown("---")
+    st.markdown("##### Turnkey Wet-Lab Synthesis Order Dossier (CRO Procurement Specification)")
+    st.caption("Commercial building block sourcing, 2-step standardized synthetic route, and validated bioassay protocols for wet-lab handoff.")
+
+    review_cand_row = df_active[df_active["mol_id"] == review_mol].iloc[0] if (df_active["mol_id"] == review_mol).any() else df_active.iloc[0]
+
+    from xtubit.wetlab_dossier import build_turnkey_dossier_package
+    try:
+        dossier_pkg = build_turnkey_dossier_package(review_cand_row, reviewer=reviewer_name)
+        specs = dossier_pkg["specifications"]
+        blocks = dossier_pkg["building_blocks"]
+        scheme = dossier_pkg["synthetic_scheme"]
+
+        dos_m1, dos_m2, dos_m3, dos_m4 = st.columns(4)
+        dos_m1.metric("Formula Weight", f"{specs['formula_weight_Da']:.2f} Da", delta=specs["molecular_formula"])
+        dos_m2.metric("Calculated LogP", f"{specs['clogp']:.2f}", delta="Optimal Lipophilicity" if 2.0 <= specs['clogp'] <= 4.5 else "Check Formulation")
+        dos_m3.metric("Polar Surface (TPSA)", f"{specs['tpsa_A2']:.1f} Å²", delta="Cell Penetration OK" if specs['tpsa_A2'] <= 140 else "High TPSA")
+        dos_m4.metric("Est. Reagent Cost", f"${dossier_pkg['estimated_starting_materials_cost_USD']}", delta=dossier_pkg["overall_synthesis_feasibility"])
+
+        st.caption(f"**Chemical Identifiers**: InChIKey: `{specs['inchikey']}` | Canonical SMILES: `{specs['canonical_smiles']}`")
+
+        # Commercial Starting Materials Table
+        st.markdown(f"**Commercial Building Block Sourcing (Enamine REAL / Mcule Catalog):**")
+        df_blocks = pd.DataFrame(blocks)[["fragment_role", "chemical_name", "enamine_id", "mcule_id", "cas_number", "purity", "est_cost_per_gram", "est_lead_time"]]
+        df_blocks.columns = ["Fragment Role", "Starting Material Name", "Enamine Catalog ID", "Mcule ID", "CAS Number", "Purity", "Est. Cost/g", "Lead Time"]
+        st.dataframe(df_blocks, use_container_width=True)
+
+        # 2-Step Forward Synthetic Scheme
+        st.markdown(f"**Validated Forward Synthetic Route for {review_mol}:**")
+        df_scheme = pd.DataFrame(scheme)[["step_number", "reaction_type", "reagents", "solvent", "temperature_time", "expected_yield", "analytical_qc"]]
+        df_scheme.columns = ["Step #", "Reaction Type", "Reagents & Catalysts", "Solvent & Concentration", "Conditions", "Expected Yield", "Analytical QC"]
+        st.dataframe(df_scheme, use_container_width=True)
+
+        # Standardized Bioassay Protocol Package
+        with st.expander("Standardized Bioassay Protocol Package (Pks13-TE IC50 & Mtb H37Rv MIC90)", expanded=False):
+            pr_col1, pr_col2 = st.columns(2)
+            with pr_col1:
+                p1 = dossier_pkg["bioassay_protocols"]["Pks13_Fluorogenic_Esterase_IC50"]
+                st.markdown(f"**Enzymatic Assay: {p1['title']}**")
+                st.markdown(f"- **Target:** {p1['target']}")
+                st.markdown(f"- **Enzyme Concentration:** {p1['enzyme_conc']}")
+                st.markdown(f"- **Assay Buffer:** {p1['buffer_conditions']}")
+                st.markdown(f"- **Substrate & Readout:** {p1['substrate']} ({p1['detection']})")
+                st.markdown(f"- **Positive Control:** `{p1['positive_control']}`")
+            with pr_col2:
+                p2 = dossier_pkg["bioassay_protocols"]["Mtb_H37Rv_Cellular_MIC90"]
+                st.markdown(f"**Cellular Assay: {p2['title']}**")
+                st.markdown(f"- **Pathogen Strain:** {p2['strain']}")
+                st.markdown(f"- **Growth Medium:** {p2['growth_medium']}")
+                st.markdown(f"- **Incubation & Readout:** {p2['incubation_period']} ({p2['readout_agent']})")
+                st.markdown(f"- **Positive Control:** `{p2['positive_control']}`")
+                st.markdown(f"- **Containment:** `{p2['safety_level']}`")
+
+        # 1-Click Download Dossier Package
+        dossier_json = json.dumps(dossier_pkg, indent=2).encode("utf-8")
+        st.download_button(
+            label=f"Download {review_mol} Wet-Lab Synthesis Dossier (JSON Package)",
+            data=dossier_json,
+            file_name=f"{review_mol}_wetlab_synthesis_dossier.json",
+            mime="application/json",
+            key=f"dl_dossier_{review_mol}",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.warning(f"Could not assemble wet-lab dossier for {review_mol}: {e}")
+
+    # ==============================================================================
+    # Clinical Resistance Mutation Profiling Panel (Task 4.2)
+    # ==============================================================================
+    st.markdown("---")
+    st.markdown("##### Clinical Resistance Mutation Profiling Panel (Cross-Screening Resilience)")
+    st.caption("Evaluate candidate binding resilience against known clinical and laboratory-selected escape mutations in the Pks13 catalytic cleft.")
+
+    from xtubit.resistance_mutations import evaluate_candidate_resistance_profile
+    try:
+        res_profile = evaluate_candidate_resistance_profile(review_cand_row, num_agents=16)
+        var_profiles = res_profile["variant_profiles"]
+
+        wt_prof = [v for v in var_profiles if v["variant_id"] == "WT"][0]
+        mut_only = [v for v in var_profiles if v["variant_id"] != "WT"]
+
+        res_col1, res_col2, res_col3, res_col4 = st.columns(4)
+        res_col1.metric("Overall Resilience", res_profile["overall_resilience_rating"], delta="Cross-Variant Robustness")
+        res_col2.metric("Mean Penalty (ΔΔG)", f"{res_profile['mean_resistance_penalty_kcal_mol']:+.2f} kcal/mol", delta="Target: ≤ +1.5 kcal/mol")
+        res_col3.metric("Worst Escape Penalty", f"{res_profile['worst_resistance_penalty_kcal_mol']:+.2f} kcal/mol", delta="Max Observed Shift")
+        res_col4.metric("Native WT Binding", f"{wt_prof['binding_energy_kcal_mol']:.2f} kcal/mol", delta="PDB 5V3Y Native")
+
+        # Cross-Screening Resistance Scorecard Table
+        df_var = pd.DataFrame(var_profiles)[["variant_name", "mutation", "clinical_prevalence", "binding_energy_kcal_mol", "delta_delta_G_kcal_mol", "potency_retention_pct", "resilience_status", "mechanism"]]
+        df_var.columns = ["Variant", "Amino Acid Mutation", "Prevalence", "Binding Energy (kcal/mol)", "ΔΔG Shift (kcal/mol)", "Potency Retention %", "Resilience Status", "Structural Mechanism"]
+        st.dataframe(df_var, use_container_width=True)
+
+        # Cross-Variant Potency Retention Bar Chart in Soft Purple
+        st.markdown(f"**Cross-Variant Potency Retention Profile for {review_mol}:**")
+        fig_mut = go.Figure()
+        var_names = [v["variant_name"] for v in var_profiles]
+        ret_pcts = [v["potency_retention_pct"] for v in var_profiles]
+        bar_colors = ["#7b2cbf" if r >= 80 else ("#9d4edd" if r >= 50 else "#c86d38") for r in ret_pcts]
+
+        fig_mut.add_trace(go.Bar(
+            x=var_names,
+            y=ret_pcts,
+            marker_color=bar_colors,
+            text=[f"{r:.1f}%" for r in ret_pcts],
+            textposition="outside",
+            textfont=dict(color="#44403c", size=11)
+        ))
+        fig_mut.update_layout(
+            height=250,
+            margin=dict(l=45, r=20, t=20, b=40),
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
+            yaxis=dict(title="Potency Retention (%)", range=[0, 115], gridcolor="#f4f1eb", tickfont=dict(color="#78716c")),
+            xaxis=dict(tickfont=dict(color="#78716c"))
+        )
+        st.plotly_chart(fig_mut, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.warning(f"Could not compute resistance profile for {review_mol}: {e}")
 
     # Theoretical Foundation & Algorithmic Benchmark Verification Matrix
     st.markdown("---")
