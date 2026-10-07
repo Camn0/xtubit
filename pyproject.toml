@@ -14,6 +14,13 @@ dependencies = [
   "pyarrow",
   "rdkit",
   "selfies",
+  "torch",
+  "streamlit",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
 ]
 
 [tool.pytest.ini_options]

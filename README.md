@@ -1,8 +1,6 @@
 # X-TUBIT
 
-### Emulator Solver Ising Terinspirasi Probabilistic Bits dan Geometric Deep Learning Sebagai Penapis Awal Kandidat Inhibitor Pks13 pada Tuberkulosis Resisten Obat
-
-*In-Silico Hardware Digital Twin & Decoupled CADD Pipeline for Screening Mycobacterium tuberculosis Pks13-TE Inhibitors*
+**In-Silico Hardware Digital Twin & Decoupled CADD Pipeline for Screening *Mycobacterium tuberculosis* Pks13-TE Inhibitors**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-%202.x-EE4C2C.svg?logo=pytorch)](https://pytorch.org/)
@@ -38,7 +36,7 @@
   - [3. Running Tests and Verifications](#3-running-tests-and-verifications)
   - [4. Launching the Human-in-the-Loop Dashboard](#4-launching-the-human-in-the-loop-dashboard)
 - [System Boundaries and Scientific Disclaimers](#system-boundaries-and-scientific-disclaimers)
-- [Team and Acknowledgments](#team-and-acknowledgments)
+- [Authors and Acknowledgments](#authors-and-acknowledgments)
 - [Citation](#citation)
 - [License](#license)
 - [References](#references)
@@ -386,23 +384,15 @@ streamlit run app/streamlit_app.py
 
 ---
 
-## Team and Acknowledgments
-
-**Program**: Program Kreativitas Mahasiswa - Karsa Cipta (PKM-KC) 2026  
-**Bidang Fokus / Focus Area**: Kesehatan dan Gizi Masyarakat (Healthcare and Public Health)  
-**Perguruan Tinggi / Institution**: Universitas Indonesia (UI)  
-**Fakultas / Departemen**: Fakultas Teknik, Departemen Teknik Elektro  
+## Authors and Acknowledgments
 
 ### Research Team
-- **Maheztha Sulthan Syadi** ([@Camn0](https://github.com/Camn0)) - *Teknik Elektro UI (Computer Engineering / Artificial Intelligence) - Research Coordination, Multi-Objective BGNN/qPMHI Formulation, Cloud GPU Digital Twin Solvers (SB/TESB/pSA-PD), Retrospective Blind Test Supervision.*
-- **Agit Prasetya** - *Teknik Elektro UI (Bioinformatics / Database Systems) - Chemical Data Curation (ZINC/PubChem), 3D Conformer Modeling, Pks13-TE Cavity Extraction, BRICS Decomposition and Matrix Q Construction.*
-- **Syafiq Noor Azzam** - *Teknik Elektro UI (Data Science / Machine Learning) - QED/SA Filter Pipelines, FAENet Geometric Pre-training and Fine-Tuning, 3D Representation Ablations, Tensor Dynamics Implementation.*
-- **Falsya Hizri Anbiya** - *Teknik Elektro UI (Software Engineering / UI & UX Design) - Human-in-the-Loop (HITL) Streamlit UI/UX Architecture, 3D Pose and Pareto Visualization, Media and Documentation Dissemination.*
+- **Maheztha Sulthan Syadi** ([@Camn0](https://github.com/Camn0))
+- **Agit Prasetya**
+- **Syafiq Noor Azzam**
+- **Falsya Hizri Anbiya**
 
-### Funding and Institutional Support
-This project is formulated under the **Program Kreativitas Mahasiswa bidang Karsa Cipta (PKM-KC) 2026** initiative, supported by:
-- **Direktorat Pembelajaran dan Kemahasiswaan (Belmawa)**, Kementerian Pendidikan Tinggi, Sains, dan Teknologi Republik Indonesia.
-- **Universitas Indonesia (UI)**.
+*Department of Electrical Engineering, Faculty of Engineering, University of Indonesia, Depok, Indonesia.*
 
 ---
 
@@ -413,8 +403,8 @@ If you use or reference X-TUBIT in your research, please cite:
 ```bibtex
 @misc{xtubit2026,
   author       = {Syadi, Maheztha Sulthan and Prasetya, Agit and Azzam, Syafiq Noor and Anbiya, Falsya Hizri},
-  title        = {X-TUBIT: Emulator Solver Ising Terinspirasi Probabilistic Bits dan Geometric Deep Learning Sebagai Penapis Awal Kandidat Inhibitor Pks13 pada Tuberkulosis Resisten Obat},
-  institution  = {Universitas Indonesia},
+  title        = {X-TUBIT: In-Silico Hardware Digital Twin & Decoupled CADD Pipeline for Screening Mycobacterium tuberculosis Pks13-TE Inhibitors},
+  institution  = {University of Indonesia},
   year         = {2026},
   publisher    = {GitHub},
   howpublished = {\url{https://github.com/Camn0/xtubit}}

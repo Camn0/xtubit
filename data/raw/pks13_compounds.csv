@@ -1,0 +1,15 @@
+mol_id,smiles,ic50_uM,unit,pIC50,source,assay_type
+TAM1,COC(=O)c1c(C)oc(c1)c2coc3ccccc23,0.26,uM,6.5850,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM2,CCOC(=O)c1c(C)oc(c1)c2coc3ccccc23,0.12,uM,6.9208,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM3,CC(C)OC(=O)c1c(C)oc(c1)c2coc3ccccc23,0.24,uM,6.6198,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM4,CCCOC(=O)c1c(C)oc(c1)c2coc3ccccc23,0.28,uM,6.5528,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM5,CCOC(=O)c1c(C)oc(c1)c2c(C)oc3ccccc23,0.71,uM,6.1487,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM6,CCOC(=O)c1c(C)oc(c1)c2c(CCC)oc3ccccc23,0.32,uM,6.4949,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM11,Cc1oc(cc1C(=O)O)c2coc3ccccc23,19.6,uM,4.7077,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM12,CCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.29,uM,6.5376,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM13,COCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.17,uM,6.7696,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM14,CCc1oc2ccccc2c1-c3cc(c(o3)C)C(=O)O,35.8,uM,4.4461,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM15,CN(C)CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,2.0,uM,5.6990,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM16,CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.19,uM,6.7212,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM17,OCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.36,uM,6.4437,Aggarwal_2017,Pks13-TE enzymatic IC50
+X20403,O=C(NCc1cccs1)c2c(C)oc(c2)c3c(CC)oc4ccccc34,0.057,uM,7.2430,Krieger_2024,Pks13-TE enzymatic IC50

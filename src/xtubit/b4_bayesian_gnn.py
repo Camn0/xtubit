@@ -3,7 +3,42 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GINEConv, global_mean_pool
+try:
+    from torch_geometric.nn import GINEConv, global_mean_pool
+except ImportError:
+    class GINEConv(nn.Module):
+        """Pure PyTorch fallback for GINEConv when torch_geometric is not installed."""
+        def __init__(self, nn_module, edge_dim=None, eps=0.0):
+            super().__init__()
+            self.nn = nn_module
+            self.eps = eps
+            if edge_dim is not None:
+                in_f = nn_module[0].in_features if hasattr(nn_module[0], "in_features") else 128
+                self.edge_encoder = nn.Linear(edge_dim, in_f)
+            else:
+                self.edge_encoder = None
+
+        def forward(self, x, edge_index, edge_attr=None):
+            src, dst = edge_index[0], edge_index[1]
+            msg = x[src]
+            if edge_attr is not None and self.edge_encoder is not None:
+                msg = msg + self.edge_encoder(edge_attr)
+            msg = F.relu(msg)
+            out = torch.zeros_like(x)
+            out.index_add_(0, dst, msg)
+            out = out + (1.0 + self.eps) * x
+            return self.nn(out)
+
+    def global_mean_pool(x, batch):
+        """Pure PyTorch fallback for global_mean_pool."""
+        if batch is None:
+            return x.mean(dim=0, keepdim=True)
+        num_graphs = int(batch.max().item()) + 1
+        out = torch.zeros(num_graphs, x.shape[1], device=x.device, dtype=x.dtype)
+        counts = torch.zeros(num_graphs, 1, device=x.device, dtype=x.dtype)
+        out.index_add_(0, batch, x)
+        counts.index_add_(0, batch, torch.ones(batch.shape[0], 1, device=x.device, dtype=x.dtype))
+        return out / counts.clamp_min(1e-8)
 
 
 class BayesianLinear(nn.Module):
