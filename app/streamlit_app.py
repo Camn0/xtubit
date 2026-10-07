@@ -1122,44 +1122,55 @@ with tab_screening:
 
     # StarDrop-Style Multi-Parameter Optimization (MPO) Profile Studio
     with st.expander("StarDrop-Style Multi-Parameter Optimization (MPO) Profile Studio", expanded=False):
-        mpo_presets = [
-            "Balanced Lead Optimization (Default)",
-            "High-Potency Striker (Affinity Focus)",
-            "Oral Bioavailability Champion (Solubility & Stability)",
-            "Rapid Low-Cost CRO Turnaround (Synthesizability Focus)",
-            "Cardiovascular Safety Shield (Zero hERG Risk Focus)",
-            "Custom User-Tuned Weighting"
-        ]
+        MPO_PRESETS_MAP = {
+            "Balanced Lead Optimization (Default)": (0.35, 0.25, 0.15, 0.10, 0.10, 0.05),
+            "High-Potency Striker (Affinity Focus)": (0.60, 0.15, 0.10, 0.05, 0.05, 0.05),
+            "Oral Bioavailability Champion (Solubility & Stability)": (0.20, 0.25, 0.10, 0.25, 0.20, 0.00),
+            "Rapid Low-Cost CRO Turnaround (Synthesizability Focus)": (0.20, 0.15, 0.45, 0.10, 0.05, 0.05),
+            "Cardiovascular Safety Shield (Zero hERG Risk Focus)": (0.20, 0.20, 0.10, 0.10, 0.15, 0.25),
+        }
+
+        # Initialize default slider weights in session_state if not present
+        if "w_mpo_mu" not in st.session_state:
+            st.session_state["w_mpo_mu"] = 0.35
+            st.session_state["w_mpo_qed"] = 0.25
+            st.session_state["w_mpo_sa"] = 0.15
+            st.session_state["w_mpo_sol"] = 0.10
+            st.session_state["w_mpo_micro"] = 0.10
+            st.session_state["w_mpo_herg"] = 0.05
+
+        def on_mpo_preset_change():
+            sel = st.session_state.get("mpo_preset_selector")
+            if sel in MPO_PRESETS_MAP:
+                w_v = MPO_PRESETS_MAP[sel]
+                st.session_state["w_mpo_mu"] = w_v[0]
+                st.session_state["w_mpo_qed"] = w_v[1]
+                st.session_state["w_mpo_sa"] = w_v[2]
+                st.session_state["w_mpo_sol"] = w_v[3]
+                st.session_state["w_mpo_micro"] = w_v[4]
+                st.session_state["w_mpo_herg"] = w_v[5]
+
+        mpo_presets = list(MPO_PRESETS_MAP.keys()) + ["Custom User-Tuned Weighting"]
         mpo_choice = st.selectbox(
             "Select Clinical Optimization Profile",
             options=mpo_presets,
             index=0,
-            help="Choose a pre-configured multi-parametric objective profile, or customize all 6 parameter weight sliders below."
+            key="mpo_preset_selector",
+            on_change=on_mpo_preset_change,
+            help="Choose a pre-configured multi-parametric objective profile to automatically set all 6 parameter weight sliders below."
         )
 
-        # Default weights depending on preset
-        if mpo_choice == "High-Potency Striker (Affinity Focus)":
-            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.60, 0.15, 0.10, 0.05, 0.05, 0.05
-        elif mpo_choice == "Oral Bioavailability Champion (Solubility & Stability)":
-            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.25, 0.10, 0.25, 0.20, 0.00
-        elif mpo_choice == "Rapid Low-Cost CRO Turnaround (Synthesizability Focus)":
-            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.15, 0.45, 0.10, 0.05, 0.05
-        elif mpo_choice == "Cardiovascular Safety Shield (Zero hERG Risk Focus)":
-            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.20, 0.10, 0.10, 0.15, 0.25
-        else:
-            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.35, 0.25, 0.15, 0.10, 0.10, 0.05
-
-        st.caption("Fine-tune individual parameter weights across primary medchem dimensions (sum auto-normalized):")
+        st.caption("Fine-tune individual parameter weights across primary medchem dimensions (auto-normalized):")
         w_c1, w_c2, w_c3 = st.columns(3)
         with w_c1:
-            w_mu = st.slider("Weight: Potency (Affinity μ)", 0.0, 1.0, def_mu, 0.05, key="w_mpo_mu")
-            w_sol = st.slider("Weight: Aqueous Solubility (µM)", 0.0, 1.0, def_sol, 0.05, key="w_mpo_sol")
+            w_mu = st.slider("Weight: Potency (Affinity μ)", 0.0, 1.0, step=0.05, key="w_mpo_mu")
+            w_sol = st.slider("Weight: Aqueous Solubility (µM)", 0.0, 1.0, step=0.05, key="w_mpo_sol")
         with w_c2:
-            w_qed = st.slider("Weight: Drug-Likeness (QED)", 0.0, 1.0, def_qed, 0.05, key="w_mpo_qed")
-            w_micro = st.slider("Weight: Microsomal Stability (t½)", 0.0, 1.0, def_micro, 0.05, key="w_mpo_micro")
+            w_qed = st.slider("Weight: Drug-Likeness (QED)", 0.0, 1.0, step=0.05, key="w_mpo_qed")
+            w_micro = st.slider("Weight: Microsomal Stability (t½)", 0.0, 1.0, step=0.05, key="w_mpo_micro")
         with w_c3:
-            w_sa = st.slider("Weight: Synthetic Feasibility (SA)", 0.0, 1.0, def_sa, 0.05, key="w_mpo_sa")
-            w_herg = st.slider("Weight: Cardiac Safety (hERG)", 0.0, 1.0, def_herg, 0.05, key="w_mpo_herg")
+            w_sa = st.slider("Weight: Synthetic Feasibility (SA)", 0.0, 1.0, step=0.05, key="w_mpo_sa")
+            w_herg = st.slider("Weight: Cardiac Safety (hERG)", 0.0, 1.0, step=0.05, key="w_mpo_herg")
 
         total_w = w_mu + w_qed + w_sa + w_sol + w_micro + w_herg
         if total_w > 0:
@@ -1167,6 +1178,30 @@ with tab_screening:
             wn_sol, wn_micro, wn_herg = w_sol / total_w, w_micro / total_w, w_herg / total_w
         else:
             wn_mu = wn_qed = wn_sa = wn_sol = wn_micro = wn_herg = 1.0 / 6.0
+
+        # Visual Weight Distribution Profile Bar Chart
+        st.markdown("**Active Profile Weight Distribution:**")
+        w_labels = ["Potency (μ)", "Drug-Likeness (QED)", "Synthetic Ease (SA)", "Aqueous Sol", "Metabolic t½", "hERG Safety"]
+        w_vals_pct = [wn_mu * 100, wn_qed * 100, wn_sa * 100, wn_sol * 100, wn_micro * 100, wn_herg * 100]
+        w_colors = ["#2a6f55", "#486557", "#5a7365", "#78716c", "#a06cd5", "#3b82f6"]
+        fig_w = go.Figure()
+        fig_w.add_trace(go.Bar(
+            x=w_vals_pct,
+            y=w_labels,
+            orientation="h",
+            marker=dict(color=w_colors, line=dict(color="#ffffff", width=1)),
+            text=[f"{v:.1f}%" for v in w_vals_pct],
+            textposition="auto",
+            hovertemplate="<b>%{y}</b>: %{x:.1f}%<extra></extra>"
+        ))
+        fig_w.update_layout(
+            height=180,
+            margin=dict(l=145, r=20, t=10, b=30),
+            xaxis=dict(title="Weight Proportion (%)", range=[0, max(w_vals_pct) * 1.25 + 5], gridcolor="#f4f1eb", zeroline=False),
+            yaxis=dict(autorange="reversed", tickfont=dict(size=11, color="#292524")),
+            paper_bgcolor="#ffffff", plot_bgcolor="#ffffff"
+        )
+        st.plotly_chart(fig_w, use_container_width=True, config={"displayModeBar": False})
 
         if not df_filtered.empty:
             mu_span = (df_filtered["mu"].max() - df_filtered["mu"].min())
@@ -2098,14 +2133,15 @@ with tab_conformer:
             seed_smis = df_active[df_active["mol_id"].isin(seed_choices)]["smiles_can"].tolist()
             if not seed_smis:
                 seed_smis = [active_row["smiles_can"]]
-            pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000)
+            pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000, strategy=strategy_choice)
             if pop:
                 mobo_res_df = screen_and_rank_analogs(pop)
                 # Apply custom Pareto weighting
                 pw_tot = pw_aff + pw_qed + pw_sa
                 if pw_tot > 0:
                     pwn_aff, pwn_qed, pwn_sa = pw_aff / pw_tot, pw_qed / pw_tot, pw_sa / pw_tot
-                    sa_norm = (10.0 - mobo_res_df["sa_score"]) / 9.0
+                    sa_vals = mobo_res_df["sa"] if "sa" in mobo_res_df.columns else mobo_res_df.get("sa_score", 3.0)
+                    sa_norm = (10.0 - sa_vals) / 9.0
                     aff_norm = (mobo_res_df["mu"] - 5.0) / 3.5
                     mobo_res_df["custom_pareto_score"] = (pwn_aff * aff_norm + pwn_qed * mobo_res_df["qed"] + pwn_sa * sa_norm).clip(lower=0.01)
                     mobo_res_df = mobo_res_df.sort_values(by="custom_pareto_score", ascending=False).reset_index(drop=True)

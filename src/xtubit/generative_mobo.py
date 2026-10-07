@@ -175,14 +175,31 @@ MEDCHEM_TRANSFORMS: List[Tuple[str, str, str]] = [
 # 3. Genetic Operators: Mutation & Crossover
 # ==============================================================================
 
-def mutate_molecule(mol: Chem.Mol, rng: Optional[random.Random] = None) -> Optional[Tuple[Chem.Mol, str]]:
-    """Apply a random medicinal chemistry transformation to generate an analog."""
+def mutate_molecule(
+    mol: Chem.Mol,
+    rng: Optional[random.Random] = None,
+    strategy: Optional[str] = None
+) -> Optional[Tuple[Chem.Mol, str]]:
+    """Apply a medicinal chemistry transformation to generate an analog."""
     if rng is None:
         rng = random.Random()
     
     # Shuffle transforms and try until a matching reaction succeeds
     indices = list(range(len(MEDCHEM_TRANSFORMS)))
     rng.shuffle(indices)
+
+    # If a specific SAR strategy is requested, prioritize corresponding reaction transforms
+    if strategy:
+        strat_lower = strategy.lower()
+        if "amide" in strat_lower:
+            pref = [i for i, t in enumerate(MEDCHEM_TRANSFORMS) if "amide" in t[0].lower()]
+            indices = pref + [i for i in indices if i not in pref]
+        elif "halogen" in strat_lower or "fluor" in strat_lower:
+            pref = [i for i, t in enumerate(MEDCHEM_TRANSFORMS) if "fluorin" in t[0].lower() or "chlorin" in t[0].lower()]
+            indices = pref + [i for i in indices if i not in pref]
+        elif "lipophilic" in strat_lower or "core" in strat_lower:
+            pref = [i for i, t in enumerate(MEDCHEM_TRANSFORMS) if "ethyl" in t[0].lower() or "cf3" in t[0].lower() or "cyclopropyl" in t[0].lower()]
+            indices = pref + [i for i in indices if i not in pref]
 
     for idx in indices:
         name, smarts, _ = MEDCHEM_TRANSFORMS[idx]
@@ -259,7 +276,8 @@ def crossover_molecules(mol_a: Chem.Mol, mol_b: Chem.Mol, rng: Optional[random.R
 def generate_analog_population(
     seed_smiles: List[str],
     n_analogs: int = 20,
-    seed: int = 42
+    seed: int = 42,
+    strategy: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Generate a diverse population of novel Pks13 analogs from seed molecules."""
     rng = random.Random(seed)
@@ -268,16 +286,19 @@ def generate_analog_population(
 
     generated: Dict[str, Dict[str, Any]] = {}
     attempts = 0
-    max_attempts = n_analogs * 15
+    max_attempts = n_analogs * 20
+
+    is_crossover_strat = bool(strategy and "crossover" in strategy.lower())
+    mut_thresh = 0.20 if is_crossover_strat else 0.65
 
     while len(generated) < n_analogs and attempts < max_attempts:
         attempts += 1
         mode = rng.random()
 
-        if mode < 0.65 or len(seed_mols) < 2:
+        if mode < mut_thresh or len(seed_mols) < 2:
             # Mutation step
             parent = rng.choice(seed_mols)
-            res = mutate_molecule(parent, rng=rng)
+            res = mutate_molecule(parent, rng=rng, strategy=strategy)
             if res is not None:
                 child_mol, transform_name = res
                 smi_can = Chem.MolToSmiles(child_mol, canonical=True)
@@ -366,6 +387,9 @@ def screen_and_rank_analogs(
 
     df["mu"] = np.round(base_mu, 3)
     df["sigma"] = np.round(base_sigma, 3)
+
+    # Ensure sa_score alias exists
+    df["sa_score"] = df["sa"]
 
     # 2. Multi-Objective Pareto Frontier & qPMHI Acquisition
     mu_vals = df["mu"].values
