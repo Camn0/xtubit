@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+import sys
 import time
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -19,6 +20,13 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 import torch
+
+# Ensure repository root and src are always in sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(ROOT_DIR / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR / "src"))
 
 # ==============================================================================
 # Page Configuration
@@ -30,10 +38,9 @@ st.set_page_config(
 )
 
 # ==============================================================================
-# Mochi Aesthetic Design System
+# Mochi Aesthetic Design System with Micro-Interactions
 # Soft, pillowy, warm pastel/earthy tones (cream, matcha, kinako, soft slate).
-# Metric deltas: Soft Matcha (up) and Soft Azuki/Chestnut (down). Zero neon.
-# No text overlaps, no iframe scrollbars, robust responsive layouts.
+# Interactive hover lift, zero text overlaps, clean vector frames.
 # ==============================================================================
 MOCHI_CSS = """
 <style>
@@ -56,6 +63,12 @@ MOCHI_CSS = """
         padding: 10px 14px;
         min-height: 82px;
         box-shadow: 0 2px 5px rgba(60, 50, 40, 0.02);
+        transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        border-color: #2a6f55;
+        box-shadow: 0 4px 12px rgba(60, 50, 40, 0.06);
     }
     [data-testid="stMetricValue"] {
         color: #292524 !important;
@@ -162,12 +175,12 @@ MOCHI_CSS = """
         border-radius: 8px 8px 0 0 !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        color: #4a6b5d !important;
-        border-bottom-color: #4a6b5d !important;
+        color: #2a6f55 !important;
+        border-bottom-color: #2a6f55 !important;
         background-color: transparent !important;
     }
 
-    /* Pillowy Buttons */
+    /* Pillowy Buttons with Micro-Interactions */
     div[data-testid="stButton"] button, div[data-testid="stDownloadButton"] button {
         border: 1px solid #ded9ce !important;
         background-color: #ffffff !important;
@@ -177,12 +190,14 @@ MOCHI_CSS = """
         padding: 0.40rem 0.85rem !important;
         font-size: 0.82rem !important;
         box-shadow: 0 1px 3px rgba(60, 50, 40, 0.02) !important;
-        transition: all 0.15s ease-in-out !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease !important;
     }
     div[data-testid="stButton"] button:hover, div[data-testid="stDownloadButton"] button:hover {
-        border-color: #4a6b5d !important;
+        transform: translateY(-1px);
+        border-color: #2a6f55 !important;
         background-color: #f4f1eb !important;
         color: #292524 !important;
+        box-shadow: 0 4px 10px rgba(42, 111, 85, 0.12) !important;
     }
 
     /* Soft Container Borders */
@@ -201,7 +216,7 @@ MOCHI_CSS = """
     /* Pill Badges */
     .pill-badge {
         display: inline-block;
-        padding: 2px 7px;
+        padding: 3px 8px;
         margin: 2px;
         border-radius: 6px;
         font-size: 0.74rem;
@@ -209,8 +224,8 @@ MOCHI_CSS = """
     }
     .pill-matcha {
         background-color: #eaf1ed;
-        color: #4a6b5d;
-        border: 1px solid #d2ded7;
+        color: #2a6f55;
+        border: 1px solid #cce0d6;
     }
     .pill-azuki {
         background-color: #f5ecec;
@@ -228,7 +243,7 @@ MOCHI_CSS = """
         border: 1px solid #eadecb;
     }
 
-    /* Mochi Card Tile */
+    /* Mochi Card Tile with Hover Elevation */
     .mochi-tile {
         background-color: #ffffff;
         border: 1px solid #e8e4dc;
@@ -236,6 +251,12 @@ MOCHI_CSS = """
         padding: 10px 12px;
         margin-bottom: 10px;
         box-shadow: 0 2px 5px rgba(60, 50, 40, 0.02);
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+    }
+    .mochi-tile:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 18px rgba(60, 50, 40, 0.08);
+        border-color: #2a6f55;
     }
 </style>
 """
@@ -255,7 +276,7 @@ def generate_2d_svg(smiles: str, width: int = 260, height: int = 150) -> str:
         drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
         opts = drawer.drawOptions()
         opts.clearBackground = True
-        opts.bondLineWidth = 1.7
+        opts.bondLineWidth = 1.8
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
         svg = drawer.GetDrawingText()
@@ -293,6 +314,11 @@ def render_svg_html(svg_content: str, height: int = 160) -> str:
                 border-radius: 10px;
                 box-sizing: border-box;
                 padding: 4px;
+                transition: border-color 0.18s ease, box-shadow 0.18s ease;
+            }}
+            .svg-box:hover {{
+                border-color: #2a6f55;
+                box-shadow: 0 4px 12px rgba(42, 111, 85, 0.08);
             }}
             svg {{
                 max-width: 95%;
@@ -413,8 +439,8 @@ conformers_dir = Path("data/processed/conformers")
 audit_file = Path("data/processed/hitl_decisions.jsonl")
 
 # ==============================================================================
-# Robust Session State Initialization & Sidebar Callbacks
-# Fixes the 2-click issue by binding Streamlit widget keys directly to state.
+# Robust Session State Architecture & Pre-Instantiation Callbacks
+# Completely prevents StreamlitWidgetAlreadyInstantiatedError and 2-click lag.
 # ==============================================================================
 DATASET_OPTIONS = [
     "Aggarwal & Krieger Co-Crystals (14 Compounds)",
@@ -431,9 +457,22 @@ if "uploaded_molecules" not in st.session_state:
 if "custom_analogue" not in st.session_state:
     st.session_state["custom_analogue"] = None
 
+def set_active_candidate(mol_id: str):
+    """Callback fired BEFORE widget instantiation to set active candidate safely."""
+    st.session_state["sb_active_mol"] = mol_id
+
+def add_custom_analogue_to_lib(ca_dict: dict):
+    """Callback fired BEFORE widget instantiation to append analogue to active library."""
+    if not ca_dict:
+        return
+    new_entry = dict(ca_dict)
+    new_entry["rank"] = len(st.session_state.get("uploaded_molecules", [])) + 1
+    new_entry["status"] = "Custom Lead"
+    st.session_state.setdefault("uploaded_molecules", []).append(new_entry)
+    st.session_state["sb_active_mol"] = ca_dict.get("mol_id", "ANALOGUE")
+
 def on_dataset_change():
     """Callback fired immediately when dataset selection changes."""
-    # Invalidate active mol selection so it snaps cleanly to the first item of the new library
     st.session_state.pop("sb_active_mol", None)
 
 def reset_filters():
@@ -720,8 +759,8 @@ with tab_screening:
             p_col1, p_col2 = st.columns([1.4, 1.0], gap="large")
             with p_col1:
                 st.markdown("##### Multi-Objective Frontier: QED vs. Predicted Affinity")
-                fig_pareto = go.Figure()
-
+                
+                # Non-dominated front calculation
                 pts = df_filtered[["qed", "mu"]].values
                 pareto_mask = np.ones(len(pts), dtype=bool)
                 for i in range(len(pts)):
@@ -731,28 +770,52 @@ with tab_screening:
                         pareto_mask[i] = False
                 df_p = df_filtered[pareto_mask].sort_values(by="qed")
 
-                # Candidates scatter
+                # Quick Focus buttons for Pareto Frontier Leads
+                pareto_leads = df_p["mol_id"].tolist()
+                if pareto_leads:
+                    st.caption("Quick Focus Pareto Leads:")
+                    p_btns = st.columns(min(5, len(pareto_leads)))
+                    for b_idx, p_id in enumerate(pareto_leads[:5]):
+                        with p_btns[b_idx]:
+                            st.button(
+                                f"{p_id}",
+                                key=f"btn_p_focus_{p_id}",
+                                on_click=set_active_candidate,
+                                args=(p_id,),
+                                use_container_width=True
+                            )
+
+                fig_pareto = go.Figure()
+
+                # Candidates scatter (crisp sage teal markers with soft white outline)
                 fig_pareto.add_trace(go.Scatter(
                     x=df_filtered["qed"],
                     y=df_filtered["mu"],
                     mode="markers",
                     name="Candidates",
-                    marker=dict(size=8, color="#607274", line=dict(width=1, color="#292524")),
-                    customdata=np.column_stack([df_filtered["mol_id"], df_filtered["qed"], df_filtered["mu"], df_filtered["sa"]]),
-                    hovertemplate="<b>%{customdata[0]}</b><br>QED: %{customdata[1]:.3f}<br>Affinity: %{customdata[2]:.2f} pIC50<br>SA: %{customdata[3]:.2f}<extra></extra>"
+                    marker=dict(size=9, color="#486557", opacity=0.85, line=dict(width=1.2, color="#ffffff")),
+                    customdata=np.column_stack([df_filtered["mol_id"], df_filtered["sa"], df_filtered["mw"], df_filtered["logp"]]),
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b><br>"
+                        "Affinity: <b>%{y:.2f} pIC50</b><br>"
+                        "QED: <b>%{x:.3f}</b> | SA: <b>%{customdata[1]:.2f}</b><br>"
+                        "MW: %{customdata[2]:.1f} Da | LogP: %{customdata[3]:.2f}<extra></extra>"
+                    )
                 ))
 
-                # Pareto Frontier line
+                # Pareto Frontier line (warm bronze/kinako line with distinct node points)
                 fig_pareto.add_trace(go.Scatter(
                     x=df_p["qed"],
                     y=df_p["mu"],
                     mode="lines+markers",
                     name="Pareto Frontier",
-                    line=dict(color="#c28b5b", width=2.0),
-                    marker=dict(size=6, color="#c28b5b")
+                    line=dict(color="#c86d38", width=2.6),
+                    marker=dict(size=7, color="#c86d38", line=dict(width=1.2, color="#ffffff")),
+                    customdata=np.column_stack([df_p["mol_id"], df_p["sa"], df_p["mw"], df_p["logp"]]),
+                    hovertemplate="<b>Pareto Lead: %{customdata[0]}</b><br>Affinity: %{y:.2f} pIC50<br>QED: %{x:.3f}<extra></extra>"
                 ))
 
-                # Highlight active molecule
+                # Highlight active molecule (large prominent emerald diamond)
                 if active_mol_id in df_filtered["mol_id"].values:
                     sel_row = df_filtered[df_filtered["mol_id"] == active_mol_id].iloc[0]
                     fig_pareto.add_trace(go.Scatter(
@@ -760,17 +823,45 @@ with tab_screening:
                         y=[sel_row["mu"]],
                         mode="markers",
                         name=f"Selected ({sel_row['mol_id']})",
-                        marker=dict(size=13, color="#4a6b5d", symbol="diamond", line=dict(width=1.5, color="#292524"))
+                        marker=dict(size=16, color="#1d4d38", symbol="diamond", line=dict(width=2.2, color="#ffffff")),
+                        hovertemplate=f"<b>ACTIVE: {sel_row['mol_id']}</b><br>Affinity: {sel_row['mu']:.2f} pIC50<br>QED: {sel_row['qed']:.3f}<extra></extra>"
                     ))
 
+                y_min = float(df_filtered["mu"].min())
+                y_max = float(df_filtered["mu"].max())
+                y_pad = max(0.4, (y_max - y_min) * 0.14)
+                x_min = float(df_filtered["qed"].min())
+                x_max = float(df_filtered["qed"].max())
+                x_pad = max(0.04, (x_max - x_min) * 0.08)
+
                 fig_pareto.update_layout(
-                    height=340,
-                    margin=dict(l=48, r=20, t=25, b=40),
+                    height=370,
+                    margin=dict(l=75, r=25, t=25, b=75),
                     paper_bgcolor="#ffffff",
                     plot_bgcolor="#ffffff",
-                    legend=dict(orientation="h", y=1.09, x=1, xanchor="right", font=dict(color="#78716c", size=11)),
-                    xaxis=dict(title="Drug-Likeness (QED)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
-                    yaxis=dict(title="Predicted Affinity μ (pIC50)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
+                    legend=dict(
+                        orientation="h",
+                        y=-0.28,
+                        x=0.5,
+                        xanchor="center",
+                        font=dict(family="Plus Jakarta Sans", color="#44403c", size=11),
+                        bgcolor="rgba(255,255,255,0.9)"
+                    ),
+                    xaxis=dict(
+                        title=dict(text="Drug-Likeness (QED)", font=dict(family="Plus Jakarta Sans", size=12, color="#292524", weight="bold")),
+                        range=[max(0.0, x_min - x_pad), min(1.0, x_max + x_pad)],
+                        gridcolor="#f0ece1",
+                        zeroline=False,
+                        tickfont=dict(color="#78716c", size=11)
+                    ),
+                    yaxis=dict(
+                        title=dict(text="Predicted Affinity μ (pIC50)", font=dict(family="Plus Jakarta Sans", size=12, color="#292524", weight="bold")),
+                        range=[y_min - y_pad, y_max + y_pad],
+                        gridcolor="#f0ece1",
+                        zeroline=False,
+                        tickfont=dict(color="#78716c", size=11)
+                    ),
+                    hovermode="closest"
                 )
                 st.plotly_chart(fig_pareto, use_container_width=True, config={"displayModeBar": False})
 
@@ -819,9 +910,13 @@ with tab_screening:
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
-                            if st.button(f"Inspect {tile_row['mol_id']}", key=f"btn_tile_{tile_row['mol_id']}", use_container_width=True):
-                                st.session_state["sb_active_mol"] = tile_row["mol_id"]
-                                st.rerun()
+                            st.button(
+                                f"Inspect {tile_row['mol_id']}",
+                                key=f"btn_tile_{tile_row['mol_id']}",
+                                on_click=set_active_candidate,
+                                args=(tile_row["mol_id"],),
+                                use_container_width=True
+                            )
 
         # 3. Interactive Data Table View
         else:
@@ -855,15 +950,15 @@ with tab_screening:
                 fig_sar.add_trace(go.Scatter(
                     x=df_filtered[px_val], y=df_filtered[py_val],
                     mode="markers", text=df_filtered["mol_id"],
-                    marker=dict(size=8, color="#607274", line=dict(width=1, color="#292524")),
+                    marker=dict(size=8, color="#486557", opacity=0.85, line=dict(width=1, color="#ffffff")),
                     name="Candidates"
                 ))
                 fig_sar.add_trace(go.Scatter(
                     x=x_line, y=y_line, mode="lines",
-                    line=dict(color="#c28b5b", dash="dash", width=1.5), name="Trendline"
+                    line=dict(color="#c86d38", dash="dash", width=1.8), name="Trendline"
                 ))
                 fig_sar.update_layout(
-                    height=280, margin=dict(l=45, r=20, t=15, b=40),
+                    height=290, margin=dict(l=55, r=25, t=20, b=45),
                     paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
                     xaxis=dict(title=px_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
                     yaxis=dict(title=py_val.upper(), gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c"))
@@ -879,6 +974,7 @@ with tab_compare:
     st.caption("Select two candidates to compare directly against each other and the crystallographic benchmark lead (TAM16).")
 
     all_mols = df_active["mol_id"].tolist()
+    # Default Candidate A and Candidate B to two distinct compounds
     if "cmp_mol_a" not in st.session_state or st.session_state["cmp_mol_a"] not in all_mols:
         st.session_state["cmp_mol_a"] = all_mols[0]
     if "cmp_mol_b" not in st.session_state or st.session_state["cmp_mol_b"] not in all_mols:
@@ -929,28 +1025,66 @@ with tab_compare:
             logp_n = np.clip(1.0 - abs(row["logp"] - 3.5) / 3.5, 0.1, 1.0)
             return [aff_n, qed_n, sa_n, mw_n, logp_n]
 
+        # Close the polygons for clean continuous rendering
+        vals_a = normalize_mpo(row_a)
+        vals_b = normalize_mpo(row_b)
+        vals_ref = normalize_mpo(ref_row)
+        closed_metrics = radar_metrics + [radar_metrics[0]]
+
         fig_radar = go.Figure()
         fig_radar.add_trace(go.Scatterpolar(
-            r=normalize_mpo(row_a), theta=radar_metrics, fill="toself",
-            name=f"A: {row_a['mol_id']}", line_color="#4a6b5d", fillcolor="rgba(74, 107, 93, 0.2)"
+            r=vals_a + [vals_a[0]], theta=closed_metrics, fill="toself",
+            name=f"A: {row_a['mol_id']}",
+            line=dict(color="#2a6f55", width=2.8),
+            marker=dict(size=6, color="#2a6f55"),
+            fillcolor="rgba(42, 111, 85, 0.20)",
+            hovertemplate="<b>A: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
-            r=normalize_mpo(row_b), theta=radar_metrics, fill="toself",
-            name=f"B: {row_b['mol_id']}", line_color="#607274", fillcolor="rgba(96, 114, 116, 0.2)"
+            r=vals_b + [vals_b[0]], theta=closed_metrics, fill="toself",
+            name=f"B: {row_b['mol_id']}",
+            line=dict(color="#c45a2c", width=2.8),
+            marker=dict(size=6, color="#c45a2c"),
+            fillcolor="rgba(196, 90, 44, 0.18)",
+            hovertemplate="<b>B: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
-            r=normalize_mpo(ref_row), theta=radar_metrics, fill="toself",
-            name=f"Lead: {ref_row['mol_id']}", line_color="#c28b5b", fillcolor="rgba(194, 139, 91, 0.15)"
+            r=vals_ref + [vals_ref[0]], theta=closed_metrics, fill="toself",
+            name=f"Lead: {ref_row['mol_id']}",
+            line=dict(color="#525b68", width=2.0, dash="dash"),
+            marker=dict(size=5, color="#525b68"),
+            fillcolor="rgba(82, 91, 104, 0.08)",
+            hovertemplate="<b>Lead: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.update_layout(
-            height=340,
-            margin=dict(l=35, r=35, t=35, b=35),
+            height=360,
+            margin=dict(l=65, r=65, t=35, b=45),
             paper_bgcolor="#ffffff",
             polar=dict(
-                radialaxis=dict(visible=True, range=[0, 1.0], showticklabels=False, gridcolor="#f0ece1"),
-                angularaxis=dict(tickfont=dict(color="#44403c", size=10))
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1.05],
+                    showticklabels=False,
+                    ticks="",
+                    showline=False,
+                    gridcolor="#e8e4dc",
+                    gridwidth=1.2
+                ),
+                angularaxis=dict(
+                    tickfont=dict(family="Plus Jakarta Sans", color="#292524", size=11, weight="bold"),
+                    gridcolor="#e8e4dc",
+                    gridwidth=1.0,
+                    linecolor="#d8d3c8"
+                ),
+                bgcolor="#faf9f6"
             ),
-            legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center", font=dict(color="#78716c", size=11))
+            legend=dict(
+                orientation="h",
+                y=-0.14,
+                x=0.5,
+                xanchor="center",
+                font=dict(family="Plus Jakarta Sans", color="#78716c", size=11)
+            )
         )
         st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
 
@@ -999,7 +1133,7 @@ with tab_conformer:
         elif color_scheme == "Muted Slate":
             scheme_arg = 'color: "#607274"'
         else:
-            scheme_arg = 'color: "#4a6b5d"'
+            scheme_arg = 'color: "#2a6f55"'
 
         if mol_rep == "Sticks":
             style_code = f'viewer.setStyle({{}}, {{stick: {{radius: 0.20, {scheme_arg}}}}});'
@@ -1163,15 +1297,12 @@ with tab_conformer:
                     use_container_width=True
                 )
             with c_btn2:
-                if st.button("Add to Active Library", use_container_width=True):
-                    new_entry = dict(ca)
-                    new_entry["rank"] = len(df_active) + 1
-                    new_entry["status"] = "Custom Lead"
-                    st.session_state["uploaded_molecules"].append(new_entry)
-                    st.session_state["sb_active_mol"] = ca_mol_id
-                    st.success(f"Added {ca_mol_id} to library! Refreshing...")
-                    time.sleep(0.4)
-                    st.rerun()
+                st.button(
+                    "Add to Active Library",
+                    on_click=add_custom_analogue_to_lib,
+                    args=(ca,),
+                    use_container_width=True
+                )
 
 # ==============================================================================
 # Tab 4: Digital Annealing Studio & Live QUBO Simulator
@@ -1197,7 +1328,7 @@ with tab_solvers:
                 st.metric("Baseline Energy", f"{exact_solver['energy']:.2f} kcal/mol")
 
         cs1, cs2 = st.columns([1.1, 1.1], gap="large")
-        mochi_bars = ["#607274", "#4a6b5d", "#7d7482", "#c28b5b"]
+        mochi_bars = ["#607274", "#2a6f55", "#7d7482", "#c45a2c"]
 
         with cs1:
             st.markdown("##### Ground-State Energy (kcal/mol)")
@@ -1267,7 +1398,10 @@ with tab_solvers:
                     Q_mod = Q_base * penalty_d_mult if penalty_d_mult != 1.0 else Q_base
 
                     if solver_choice == "Exact Brute Force":
-                        from src.xtubit.solvers.exact import brute_force_qubo
+                        try:
+                            from xtubit.solvers.exact import brute_force_qubo
+                        except ImportError:
+                            from src.xtubit.solvers.exact import brute_force_qubo
                         best_bits, best_val = brute_force_qubo(Q_mod)
                         bit_list = best_bits.tolist()
                         final_energy = float(best_val)
