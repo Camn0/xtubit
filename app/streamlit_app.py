@@ -989,10 +989,13 @@ with tab_screening:
         sort_by = st.selectbox(
             "Sort Order",
             [
+                "Custom MPO Profile Score (High to Low)",
                 "Rank (Best First)",
                 "Predicted Affinity (High to Low)",
                 "Drug-Likeness QED (High to Low)",
                 "Synthetic Ease (Easiest First)",
+                "Aqueous Solubility (High to Low)",
+                "Microsomal Stability t½ (High to Low)",
                 "Molecular Weight (Low to High)"
             ]
         )
@@ -1028,8 +1031,8 @@ with tab_screening:
             max_sa_val = st.slider("Max Synthetic Difficulty (SA)", 1.0, 10.0, 6.0, 0.5, key="f_max_sa" if "f_max_sa" in st.session_state else None)
 
         with f_sub3:
-            mw_range = st.slider("Molecular Weight (Da)", 150, 650, (150, 600), 25, key="f_mw" if "f_mw" in st.session_state else None)
-            logp_range = st.slider("Calculated LogP", -1.0, 7.0, (-1.0, 6.5), 0.5, key="f_logp" if "f_logp" in st.session_state else None)
+            mw_range = st.slider("Molecular Weight (Da)", 100, 800, (150, 600), 25, key="f_mw" if "f_mw" in st.session_state else None)
+            logp_range = st.slider("Calculated LogP", -2.0, 8.5, (-1.0, 6.5), 0.5, key="f_logp" if "f_logp" in st.session_state else None)
 
         st.markdown("**Preclinical MedChem & ADMET Quality Gates:**")
         qg1, qg2, qg3, qg4 = st.columns(4)
@@ -1102,29 +1105,85 @@ with tab_screening:
         df_filtered = df_filtered[df_filtered["mol_id"].str.contains(search_id, case=False)]
 
     pass_pct = (len(df_filtered) / len(df_active) * 100) if len(df_active) > 0 else 0
-    st.markdown(f"**Filter Pass Rate**: Displaying **{len(df_filtered)}** of {len(df_active)} candidates ({pass_pct:.1f}%)")
+    
+    pass_col, exp_col = st.columns([1.5, 1.0])
+    with pass_col:
+        st.markdown(f"**Filter Pass Rate**: Displaying **{len(df_filtered)}** of {len(df_active)} candidates ({pass_pct:.1f}%)")
+    with exp_col:
+        if not df_filtered.empty:
+            csv_export = df_filtered.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"Export Scored Candidates (CSV)",
+                data=csv_export,
+                file_name="xtubit_mpo_scored_library.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
-    # Custom Multi-Objective Prioritization Sliders
-    with st.expander("Custom Multi-Objective Weighted Prioritization Engine", expanded=False):
-        w1, w2, w3 = st.columns(3)
-        with w1:
-            w_mu = st.slider("Weight: Potency (Affinity μ)", 0.0, 1.0, 0.45, 0.05)
-        with w2:
-            w_qed = st.slider("Weight: Drug-Likeness (QED)", 0.0, 1.0, 0.35, 0.05)
-        with w3:
-            w_sa = st.slider("Weight: Synthetic Feasibility (SA)", 0.0, 1.0, 0.20, 0.05)
+    # StarDrop-Style Multi-Parameter Optimization (MPO) Profile Studio
+    with st.expander("StarDrop-Style Multi-Parameter Optimization (MPO) Profile Studio", expanded=False):
+        mpo_presets = [
+            "Balanced Lead Optimization (Default)",
+            "High-Potency Striker (Affinity Focus)",
+            "Oral Bioavailability Champion (Solubility & Stability)",
+            "Rapid Low-Cost CRO Turnaround (Synthesizability Focus)",
+            "Cardiovascular Safety Shield (Zero hERG Risk Focus)",
+            "Custom User-Tuned Weighting"
+        ]
+        mpo_choice = st.selectbox(
+            "Select Clinical Optimization Profile",
+            options=mpo_presets,
+            index=0,
+            help="Choose a pre-configured multi-parametric objective profile, or customize all 6 parameter weight sliders below."
+        )
 
-        total_w = w_mu + w_qed + w_sa
-        if total_w > 0:
-            w_mu_n, w_qed_n, w_sa_n = w_mu / total_w, w_qed / total_w, w_sa / total_w
+        # Default weights depending on preset
+        if mpo_choice == "High-Potency Striker (Affinity Focus)":
+            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.60, 0.15, 0.10, 0.05, 0.05, 0.05
+        elif mpo_choice == "Oral Bioavailability Champion (Solubility & Stability)":
+            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.25, 0.10, 0.25, 0.20, 0.00
+        elif mpo_choice == "Rapid Low-Cost CRO Turnaround (Synthesizability Focus)":
+            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.15, 0.45, 0.10, 0.05, 0.05
+        elif mpo_choice == "Cardiovascular Safety Shield (Zero hERG Risk Focus)":
+            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.20, 0.20, 0.10, 0.10, 0.15, 0.25
         else:
-            w_mu_n, w_qed_n, w_sa_n = 0.333, 0.333, 0.333
+            def_mu, def_qed, def_sa, def_sol, def_micro, def_herg = 0.35, 0.25, 0.15, 0.10, 0.10, 0.05
+
+        st.caption("Fine-tune individual parameter weights across primary medchem dimensions (sum auto-normalized):")
+        w_c1, w_c2, w_c3 = st.columns(3)
+        with w_c1:
+            w_mu = st.slider("Weight: Potency (Affinity μ)", 0.0, 1.0, def_mu, 0.05, key="w_mpo_mu")
+            w_sol = st.slider("Weight: Aqueous Solubility (µM)", 0.0, 1.0, def_sol, 0.05, key="w_mpo_sol")
+        with w_c2:
+            w_qed = st.slider("Weight: Drug-Likeness (QED)", 0.0, 1.0, def_qed, 0.05, key="w_mpo_qed")
+            w_micro = st.slider("Weight: Microsomal Stability (t½)", 0.0, 1.0, def_micro, 0.05, key="w_mpo_micro")
+        with w_c3:
+            w_sa = st.slider("Weight: Synthetic Feasibility (SA)", 0.0, 1.0, def_sa, 0.05, key="w_mpo_sa")
+            w_herg = st.slider("Weight: Cardiac Safety (hERG)", 0.0, 1.0, def_herg, 0.05, key="w_mpo_herg")
+
+        total_w = w_mu + w_qed + w_sa + w_sol + w_micro + w_herg
+        if total_w > 0:
+            wn_mu, wn_qed, wn_sa = w_mu / total_w, w_qed / total_w, w_sa / total_w
+            wn_sol, wn_micro, wn_herg = w_sol / total_w, w_micro / total_w, w_herg / total_w
+        else:
+            wn_mu = wn_qed = wn_sa = wn_sol = wn_micro = wn_herg = 1.0 / 6.0
 
         if not df_filtered.empty:
             mu_span = (df_filtered["mu"].max() - df_filtered["mu"].min())
             mu_norm = (df_filtered["mu"] - df_filtered["mu"].min()) / (mu_span + 1e-6) if mu_span > 0 else 1.0
             sa_norm = (10.0 - df_filtered["sa"]) / 9.0
-            df_filtered["custom_score"] = w_mu_n * mu_norm + w_qed_n * df_filtered["qed"] + w_sa_n * sa_norm
+            sol_raw = df_filtered["solubility_uM"].fillna(10.0).clip(upper=100.0) / 100.0 if "solubility_uM" in df_filtered.columns else 0.5
+            micro_raw = df_filtered["microsomal_t12_min"].fillna(30.0).clip(upper=120.0) / 120.0 if "microsomal_t12_min" in df_filtered.columns else 0.5
+            herg_raw = df_filtered["is_herg_safe"].apply(lambda x: 1.0 if x else 0.2) if "is_herg_safe" in df_filtered.columns else 0.5
+
+            df_filtered["custom_score"] = (
+                wn_mu * mu_norm +
+                wn_qed * df_filtered["qed"] +
+                wn_sa * sa_norm +
+                wn_sol * sol_raw +
+                wn_micro * micro_raw +
+                wn_herg * herg_raw
+            )
             df_filtered["custom_rank"] = df_filtered["custom_score"].rank(ascending=False, method="min").astype(int)
         else:
             df_filtered["custom_score"] = []
@@ -1132,7 +1191,9 @@ with tab_screening:
 
     # Apply sorting
     if not df_filtered.empty:
-        if sort_by == "Rank (Best First)":
+        if sort_by == "Custom MPO Profile Score (High to Low)":
+            df_filtered = df_filtered.sort_values(by="custom_score", ascending=False)
+        elif sort_by == "Rank (Best First)":
             df_filtered = df_filtered.sort_values(by="rank")
         elif sort_by == "Predicted Affinity (High to Low)":
             df_filtered = df_filtered.sort_values(by="mu", ascending=False)
@@ -1140,6 +1201,10 @@ with tab_screening:
             df_filtered = df_filtered.sort_values(by="qed", ascending=False)
         elif sort_by == "Synthetic Ease (Easiest First)":
             df_filtered = df_filtered.sort_values(by="sa", ascending=True)
+        elif sort_by == "Aqueous Solubility (High to Low)" and "solubility_uM" in df_filtered.columns:
+            df_filtered = df_filtered.sort_values(by="solubility_uM", ascending=False)
+        elif sort_by == "Microsomal Stability t½ (High to Low)" and "microsomal_t12_min" in df_filtered.columns:
+            df_filtered = df_filtered.sort_values(by="microsomal_t12_min", ascending=False)
         elif sort_by == "Molecular Weight (Low to High)":
             df_filtered = df_filtered.sort_values(by="mw", ascending=True)
 
@@ -1468,7 +1533,7 @@ with tab_compare:
     if "cmp_mol_b" not in st.session_state or st.session_state["cmp_mol_b"] not in all_mols:
         st.session_state["cmp_mol_b"] = all_mols[1] if len(all_mols) > 1 else all_mols[0]
 
-    cmp_col1, cmp_swap, cmp_col2 = st.columns([1.0, 0.25, 1.0])
+    cmp_col1, cmp_swap, cmp_col2, cmp_ref = st.columns([1.0, 0.25, 1.0, 1.0])
     with cmp_col1:
         st.selectbox("Candidate Molecule A", options=all_mols, key="cmp_mol_a")
     with cmp_swap:
@@ -1476,13 +1541,17 @@ with tab_compare:
         st.button("⇄ Swap", key="btn_swap_cmp", on_click=swap_cmp_molecules, use_container_width=True)
     with cmp_col2:
         st.selectbox("Candidate Molecule B", options=all_mols, key="cmp_mol_b")
+    with cmp_ref:
+        def_ref_idx = all_mols.index("TAM16") if "TAM16" in all_mols else 0
+        st.selectbox("Benchmark Reference Lead", options=all_mols, index=def_ref_idx, key="cmp_mol_ref", help="Choose any molecule in the library as the benchmark reference lead.")
 
     mol_a_id = st.session_state["cmp_mol_a"]
     mol_b_id = st.session_state["cmp_mol_b"]
+    ref_lead_id = st.session_state.get("cmp_mol_ref", "TAM16" if "TAM16" in all_mols else all_mols[0])
 
     row_a = df_active[df_active["mol_id"] == mol_a_id].iloc[0]
     row_b = df_active[df_active["mol_id"] == mol_b_id].iloc[0]
-    ref_row = df_active[df_active["mol_id"] == "TAM16"].iloc[0] if "TAM16" in df_active["mol_id"].values else df_active.iloc[0]
+    ref_row = df_active[df_active["mol_id"] == ref_lead_id].iloc[0] if (df_active["mol_id"] == ref_lead_id).any() else df_active.iloc[0]
 
     # Side-by-side 2D chemical structure cards
     c_card1, c_card2, c_card3 = st.columns(3)
@@ -1499,11 +1568,11 @@ with tab_compare:
             components.html(render_svg_html(svg_b, height=145), height=150)
         st.button("Focus Mol B in Workbench", key="btn_foc_b", on_click=set_active_candidate, args=(row_b["mol_id"],), use_container_width=True)
     with c_card3:
-        st.markdown(f"**Reference Lead: {ref_row['mol_id']} (Co-Crystal)**")
+        st.markdown(f"**Reference Lead: {ref_row['mol_id']} (Benchmark)**")
         svg_ref = generate_2d_svg(ref_row["smiles_can"], width=250, height=140)
         if svg_ref:
             components.html(render_svg_html(svg_ref, height=145), height=150)
-        st.button("Focus TAM16 Lead", key="btn_foc_lead", on_click=set_active_candidate, args=(ref_row["mol_id"],), use_container_width=True)
+        st.button(f"Focus {ref_row['mol_id']} Lead", key="btn_foc_lead", on_click=set_active_candidate, args=(ref_row["mol_id"],), use_container_width=True)
 
     # Informative Head-to-Head Comparison Battle Scorecard
     if row_a["mol_id"] == row_b["mol_id"]:
@@ -1986,7 +2055,7 @@ with tab_conformer:
     st.markdown("##### Generative MOBO Analog Engine (Paulson Lab Pipeline)")
     st.caption("Active in silico fragment-based chemical evolution adapted from Paulson Lab (Generative_MOBO_qPMHI). Mines chemical fragments from Pks13 clinical leads (TAM16, X20403), applies SAR-informed mutation & biaryl crossover, and performs Bayesian GNN surrogate evaluation with multi-objective qPMHI Pareto ranking.")
 
-    g_col1, g_col2, g_col3 = st.columns([1.5, 1.0, 1.0])
+    g_col1, g_col2, g_col3 = st.columns([1.3, 1.0, 1.1])
     with g_col1:
         seed_choices = st.multiselect(
             "Parent Seed Compounds for Evolution",
@@ -1995,11 +2064,30 @@ with tab_conformer:
             help="Select one or more parent scaffolds to mine fragments and drive genetic crossover."
         )
     with g_col2:
-        n_generate = st.slider("Analog Generation Batch Size", min_value=3, max_value=15, value=5, step=1)
+        n_generate = st.slider("Analog Generation Batch Size", min_value=1, max_value=60, value=10, step=1, help="Number of novel analogues to generate in parallel via genetic crossover and bioisostere mutation.")
     with g_col3:
-        st.write("")
-        st.write("")
-        run_mobo_gen = st.button("Generate & Screen Analogs via MOBO", use_container_width=True)
+        strategy_choice = st.selectbox(
+            "Generative Mutation Strategy",
+            [
+                "All SAR Operators (Balanced)",
+                "Ester-to-Amide Bioisosteres (Krieger 2024 DEL)",
+                "Aromatic Halogen Scanning (F / Cl / Br)",
+                "Biaryl Linker Crossover Recombination",
+                "Lipophilic Core Tailoring"
+            ],
+            help="Direct the molecular evolutionary pressure towards specific medicinal chemistry modifications."
+        )
+
+    with st.expander("Pareto Frontier Multi-Objective Weighting", expanded=False):
+        pw1, pw2, pw3 = st.columns(3)
+        with pw1:
+            pw_aff = st.slider("Weight: Affinity (pIC50)", 0.0, 1.0, 0.45, 0.05, key="mobo_w_aff")
+        with pw2:
+            pw_qed = st.slider("Weight: Drug-Likeness (QED)", 0.0, 1.0, 0.35, 0.05, key="mobo_w_qed")
+        with pw3:
+            pw_sa = st.slider("Weight: Synthetic Feasibility (SA)", 0.0, 1.0, 0.20, 0.05, key="mobo_w_sa")
+
+    run_mobo_gen = st.button("Generate & Screen Analogs via MOBO", use_container_width=True)
 
     if "mobo_generated_df" not in st.session_state:
         st.session_state["mobo_generated_df"] = None
@@ -2013,6 +2101,15 @@ with tab_conformer:
             pop = generate_analog_population(seed_smis, n_analogs=n_generate, seed=int(time.time()) % 10000)
             if pop:
                 mobo_res_df = screen_and_rank_analogs(pop)
+                # Apply custom Pareto weighting
+                pw_tot = pw_aff + pw_qed + pw_sa
+                if pw_tot > 0:
+                    pwn_aff, pwn_qed, pwn_sa = pw_aff / pw_tot, pw_qed / pw_tot, pw_sa / pw_tot
+                    sa_norm = (10.0 - mobo_res_df["sa_score"]) / 9.0
+                    aff_norm = (mobo_res_df["mu"] - 5.0) / 3.5
+                    mobo_res_df["custom_pareto_score"] = (pwn_aff * aff_norm + pwn_qed * mobo_res_df["qed"] + pwn_sa * sa_norm).clip(lower=0.01)
+                    mobo_res_df = mobo_res_df.sort_values(by="custom_pareto_score", ascending=False).reset_index(drop=True)
+                    mobo_res_df["mobo_rank"] = range(1, len(mobo_res_df) + 1)
                 st.session_state["mobo_generated_df"] = mobo_res_df
                 st.success(f"Generated and evaluated {len(mobo_res_df)} novel analogs across Pareto frontier!")
             else:
@@ -2107,37 +2204,57 @@ with tab_solvers:
             cand_row = df_active.iloc[0]
             st.session_state["tab4_active_mol"] = str(cand_row["mol_id"])
 
-        eng_c1, eng_c2, eng_c3 = st.columns([1.2, 1.2, 1.2])
+        eng_c1, eng_c2, eng_c3, eng_c4 = st.columns([1.2, 1.2, 1.2, 1.0])
         with eng_c1:
             hamiltonian_scale = st.selectbox(
-                "Hamiltonian Discretization Scale",
+                "Discretization Scale",
                 [
-                    "60 Qubits (6 Sub-Pockets, Scaled Production)",
-                    "90 Qubits (6 Sub-Pockets, Ultra-Dense)",
+                    "120 Qubits (6 Sub-Pockets, Ultra-Deep 20 Poses/Site)",
+                    "90 Qubits (6 Sub-Pockets, Ultra-Dense 15 Poses/Site)",
+                    "60 Qubits (6 Sub-Pockets, Scaled Production 10 Poses/Site)",
                     "12 Qubits (4 Sub-Pockets, Classic Benchmark)"
                 ],
+                index=2,
                 key="tab4_scale",
-                help="Scales pocket discretization from 12 qubits up to 60 or 90 binary variables across 6 sub-sites."
+                help="Scales pocket discretization from 12 qubits up to 60, 90, or 120 binary variables across 6 sub-sites."
             )
         with eng_c2:
+            pocket_target = st.selectbox(
+                "Target Pocket Conformation",
+                [
+                    "PDB 5V3Y (Wild-Type Closed Ground State)",
+                    "PDB 8TQV (Krieger 2024 Cryptic Hydrophobic Pocket)",
+                    "PDB 8TQG (Induced-Fit Catalytic Loop Open)",
+                    "PDB 5V40 (Asp1644Gly Resistance Mutant Cleft)"
+                ],
+                key="tab4_pocket_target",
+                help="Select crystallographic receptor state: wild-type, cryptic pocket, open loop, or clinical escape mutant."
+            )
+        with eng_c3:
             solver_engine = st.selectbox(
-                "Annealing Algorithm Engine",
+                "Annealing Engine",
                 ["Simulated Bifurcation (Digital Annealer)", "Exact Brute Force (Mathematical Proof)"],
                 key="tab4_solver_engine"
             )
-        with eng_c3:
-            num_agents = st.select_slider("Parallel Agents (Particles)", options=[16, 32, 64, 128], value=32, key="tab4_num_agents")
+        with eng_c4:
+            num_agents = st.select_slider("Agents (Particles)", options=[16, 32, 64, 128, 256, 512], value=64, key="tab4_num_agents")
 
-        with st.expander("Hamiltonian Penalty & Force-Field Restraint Tuning", expanded=False):
-            penalty_d_mult = st.slider(
-                "One-Hot Constraint Multiplier (D)", 0.5, 2.0, 1.0, 0.1, key="tab4_penalty_d",
-                help="Lagrange multiplier for the one-fragment-per-subpocket constraint in the QUBO matrix. Penalizes infeasible duplicate poses during annealing without distorting physical thermodynamic binding free energy."
-            )
+        with st.expander("Hamiltonian Penalty & Force-Field Restraint Tuning (Yanagisawa A, B, C, D)", expanded=False):
+            ht1, ht2, ht3, ht4 = st.columns(4)
+            with ht1:
+                param_a = st.slider("Overlap Penalty (A)", 0.2, 3.0, 1.0, 0.2, key="tab4_param_a", help="Yanagisawa steric overlap repulsion multiplier between non-bonded fragments.")
+            with ht2:
+                param_b = st.slider("Pocket Contact Gain (B)", 1.0, 10.0, 5.0, 0.5, key="tab4_param_b", help="Attractive electrostatic and van der Waals binding contact reward weight.")
+            with ht3:
+                param_c = st.slider("Distance Restraint (C)", 1.0, 10.0, 5.0, 0.5, key="tab4_param_c", help="Covalent bridge distance constraint penalty between adjacent fragments.")
+            with ht4:
+                penalty_d_mult = st.slider("One-Hot Multiplier (D)", 0.5, 2.5, 1.0, 0.1, key="tab4_penalty_d", help="Lagrange multiplier for one-fragment-per-subpocket constraint.")
+
             mmff_max_steps = st.slider(
-                "MMFF94 Minimization Steps", 25, 200, 100, 25, key="tab4_mmff_steps",
-                help="Number of conjugate gradient iterations for continuous force-field conformer relaxation."
+                "Continuous MMFF94 Minimization Steps", 0, 300, 100, 25, key="tab4_mmff_steps",
+                help="Conjugate gradient iterations for post-annealing continuous force-field relaxation (0 = rigid lattice, 300 = full continuous relaxation)."
             )
-            st.caption("Adjusts solver Lagrange constraint multiplier (D) and post-annealing continuous force-field gradient steps.")
+            st.caption("Customizes all 4 Yanagisawa Hamiltonian coefficients (A, B, C, D) and MMFF94 force-field relaxation depth.")
 
     with c_sel_col2:
         cand_rank = safe_int(cand_row.get("rank"), 1)
@@ -2149,11 +2266,30 @@ with tab_solvers:
 
     # Live Execution of Flexible Fragment Docking Hamiltonian
     coords_tensor = None
-    if "60 Qubits" in hamiltonian_scale or "90 Qubits" in hamiltonian_scale:
+    pocket_energy_offset = 0.0
+    if "8TQV" in pocket_target:
+        pocket_energy_offset = -0.75  # Cryptic hydrophobic pocket bonus
+    elif "5V40" in pocket_target:
+        pocket_energy_offset = +1.20  # Asp1644Gly loss of catalytic salt bridge penalty
+    elif "8TQG" in pocket_target:
+        pocket_energy_offset = +0.40  # Open loop entropic penalty
+
+    if "120 Qubits" in hamiltonian_scale or "90 Qubits" in hamiltonian_scale or "60 Qubits" in hamiltonian_scale:
         from xtubit.b6_pairs import build_scaled_pks13_qubo
-        poses_per_site = 15 if "90 Qubits" in hamiltonian_scale else 10
+        if "120 Qubits" in hamiltonian_scale:
+            poses_per_site = 20
+        elif "90 Qubits" in hamiltonian_scale:
+            poses_per_site = 15
+        else:
+            poses_per_site = 10
         n_pockets = 6
-        scaled_sys = build_scaled_pks13_qubo(poses_per_subpocket=poses_per_site, D=25.0 * penalty_d_mult)
+        scaled_sys = build_scaled_pks13_qubo(
+            poses_per_subpocket=poses_per_site,
+            A=float(param_a),
+            B=float(param_b),
+            C=float(param_c),
+            D=25.0 * float(penalty_d_mult)
+        )
         Q_base = scaled_sys["Q"].float()
         frag_id = scaled_sys["fragment_id"]
         coords_tensor = scaled_sys["coords"]
@@ -2254,10 +2390,10 @@ with tab_solvers:
         # Ground-truth reference: TAM16 co-crystal lead (pIC50 = 6.7212 -> ΔG = -9.17 kcal/mol)
         has_empirical_lead = ("exp_pIC50" in cand_row and not pd.isna(cand_row["exp_pIC50"]) and cand_row["exp_pIC50"] is not None)
         active_pic50 = float(cand_row["exp_pIC50"]) if has_empirical_lead else float(cand_row["mu"])
-        cand_dG_bind = -1.364 * active_pic50
+        cand_dG_bind = -1.364 * active_pic50 + pocket_energy_offset
         tam16_ref_dG = -9.17
 
-        if cand_row["mol_id"] == "TAM16":
+        if cand_row["mol_id"] == "TAM16" and pocket_energy_offset == 0.0:
             delta_lead_str = "0.00 kcal/mol (Baseline Reference Lead)"
             delta_color = "off"
         else:
@@ -2403,6 +2539,25 @@ with tab_solvers:
             )
             if st.session_state.get("_tab4_pushed_tab2") == cand_row["mol_id"]:
                 st.success(f"Loaded {cand_row['mol_id']} and TAM16 into Tab 2 Comparison Matrix!")
+
+        # Integrated Clinical Resistance Mutation Profiler Expander
+        with st.expander(f"Clinical Resistance Mutation Screen for {cand_row['mol_id']} (Cross-Variant Escape Panel)", expanded=False):
+            from xtubit.resistance_mutations import evaluate_candidate_resistance_profile
+            try:
+                cand_res = evaluate_candidate_resistance_profile(cand_row, num_agents=int(num_agents))
+                rc1, rc2, rc3 = st.columns(3)
+                with rc1:
+                    st.metric("Escape Resilience", cand_res["overall_resilience_rating"])
+                with rc2:
+                    st.metric("Mean ΔΔG Penalty", f"{cand_res['mean_resistance_penalty_kcal_mol']:+.2f} kcal/mol")
+                with rc3:
+                    st.caption("Tests binding free energy penalty against 5 clinical escape mutations: Asp1644Gly, Asp1607Asn, Asp1644Tyr, Asn1640Ala, Phe1585Leu.")
+
+                df_v = pd.DataFrame(cand_res["variant_profiles"])[["name", "mutation", "delta_delta_G_kcal_mol", "potency_retention_pct", "resilience_status"]]
+                df_v.columns = ["Variant", "Mutation", "ΔΔG Penalty (kcal/mol)", "Potency Retention", "Resilience"]
+                st.dataframe(df_v, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Resistance profiling note: {e}")
 
     else:
         st.info("QUBO matrix file not found.")
@@ -2627,11 +2782,28 @@ with tab_audit:
         blocks = dossier_pkg["building_blocks"]
         scheme = dossier_pkg["synthetic_scheme"]
 
+        cro_p1, cro_p2 = st.columns([1.4, 1.0])
+        with cro_p1:
+            cro_partner = st.selectbox(
+                "Preferred Commercial CRO Sourcing Partner",
+                [
+                    "Enamine REAL (Primary European / US Stock)",
+                    "Mcule Integrated Chemical Marketplace",
+                    "WuXi AppTec / ChemPartner Synthesis Catalog",
+                    "Sigma-Aldrich / ThermoFisher (Academic Labs)"
+                ],
+                key="cro_partner_pref"
+            )
+        with cro_p2:
+            cro_cost_mult = st.slider("Quote Scale Multiplier (mg to g)", 0.5, 3.0, 1.0, 0.1, key="cro_cost_mult", help="Scale starting material mass (e.g., 100 mg screening batch vs 1 g scale-up) and regional delivery tariffs.")
+
+        adjusted_cost = int(float(dossier_pkg['estimated_starting_materials_cost_USD']) * cro_cost_mult)
+
         dos_m1, dos_m2, dos_m3, dos_m4 = st.columns(4)
         dos_m1.metric("Formula Weight", f"{specs['formula_weight_Da']:.2f} Da", delta=specs["molecular_formula"])
         dos_m2.metric("Calculated LogP", f"{specs['clogp']:.2f}", delta="Optimal Lipophilicity" if 2.0 <= specs['clogp'] <= 4.5 else "Check Formulation")
         dos_m3.metric("Polar Surface (TPSA)", f"{specs['tpsa_A2']:.1f} Å²", delta="Cell Penetration OK" if specs['tpsa_A2'] <= 140 else "High TPSA")
-        dos_m4.metric("Est. Reagent Cost", f"${dossier_pkg['estimated_starting_materials_cost_USD']}", delta=dossier_pkg["overall_synthesis_feasibility"])
+        dos_m4.metric("Est. Reagent Cost", f"${adjusted_cost}", delta=f"{dossier_pkg['overall_synthesis_feasibility']} ({cro_partner.split('(')[0].strip()})")
 
         st.caption(f"**Chemical Identifiers**: InChIKey: `{specs['inchikey']}` | Canonical SMILES: `{specs['canonical_smiles']}`")
 
