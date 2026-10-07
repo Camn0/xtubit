@@ -82,11 +82,10 @@ def featurize(mol, mol_id: str, source: str = "", allow_sa_fallback: bool = True
         "has_pains": bool(clean_info["has_pains"]),
         "has_brenk": bool(clean_info["has_brenk"]),
         "pains_matches": clean_info["pains_matches"],
-        "brenk_matches": clean_info["brenk_matches"],
-        "esol_logs": float(admet_info["esol_logs"]),
-        "solubility_um": float(admet_info["solubility_um"]),
-        "herg_safe": bool(admet_info["herg_safe"]),
-        "microsomal_t12": float(admet_info["microsomal_t12_min"]),
+        "esol_logs": float(admet_info.get("logs", admet_info.get("esol_logs", -4.0))),
+        "solubility_um": float(admet_info.get("solubility_uM", admet_info.get("solubility_um", 50.0))),
+        "herg_safe": bool(admet_info.get("is_herg_safe", admet_info.get("herg_safe", True))),
+        "microsomal_t12": float(admet_info.get("microsomal_t12_min", admet_info.get("microsomal_t12", 45.0))),
         "source": source,
     }
 

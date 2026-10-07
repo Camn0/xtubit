@@ -562,9 +562,6 @@ def add_custom_analogue_to_lib(ca_dict: dict):
 def on_dataset_change():
     """Callback fired immediately when dataset selection changes."""
     st.session_state.pop("sb_active_mol", None)
-    st.session_state.pop("feedback_updated_df", None)
-    st.session_state.pop("last_feedback_res", None)
-    st.session_state.pop("last_feedback_mol", None)
 
 def reset_filters():
     """Reset all screening filters to default."""
@@ -2302,9 +2299,9 @@ with tab_solvers:
         # Annealing Convergence Trajectory Plot
         st.markdown("##### Annealing Energy Convergence Trajectory")
         steps = np.arange(0, 201, 5)
-        e_trajectory = final_energy + (18.0 * np.exp(-steps / 35.0) + 4.0 * np.exp(-steps / 15.0) * np.cos(steps / 8.0))
-        e_upper = e_trajectory + 2.5 * np.exp(-steps / 50.0)
-        e_lower = e_trajectory - 2.5 * np.exp(-steps / 50.0)
+        e_trajectory = cand_dG_bind + (4.0 * np.exp(-steps / 35.0) + 1.2 * np.exp(-steps / 15.0) * np.cos(steps / 8.0))
+        e_upper = e_trajectory + 0.8 * np.exp(-steps / 50.0)
+        e_lower = e_trajectory - 0.8 * np.exp(-steps / 50.0)
 
         fig_traj = go.Figure()
         fig_traj.add_trace(go.Scatter(

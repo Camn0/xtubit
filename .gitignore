@@ -59,3 +59,9 @@ venv.bak/
 # OS generated
 .DS_Store
 Thumbs.db
+
+# Third-party cloned sources
+third_party/*/
+!third_party/SOURCES.md
+!third_party/URLS.txt
+!third_party/LICENSE_NOTES.md
