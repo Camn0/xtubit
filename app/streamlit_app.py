@@ -28,6 +28,11 @@ if str(ROOT_DIR) not in sys.path:
 if str(ROOT_DIR / "src") not in sys.path:
     sys.path.insert(0, str(ROOT_DIR / "src"))
 
+# Invalidate stale in-memory xtubit modules in long-running Streamlit server processes across git pulls
+for _mod in list(sys.modules.keys()):
+    if _mod == "xtubit" or _mod.startswith("xtubit."):
+        sys.modules.pop(_mod, None)
+
 # ==============================================================================
 # Page Configuration
 # ==============================================================================
@@ -402,7 +407,10 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
 
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
         from xtubit.admet_predictors import predict_admet_profile
-        from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
+        try:
+            from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
+        except ImportError:
+            from xtubit.retrosynthesis import calculate_scscore as estimate_synthetic_complexity, estimate_synthetic_route
 
         med_clean = evaluate_medchem_cleanliness(mol)
         admet_prof = predict_admet_profile(mol)
@@ -802,7 +810,10 @@ with st.sidebar:
         from rdkit import Chem
         from xtubit.admet_predictors import predict_delaney_esol, predict_herg_liability, predict_microsomal_stability
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
-        from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
+        try:
+            from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
+        except ImportError:
+            from xtubit.retrosynthesis import calculate_scscore as estimate_synthetic_complexity, estimate_synthetic_route
 
         def compute_row_admet(smi):
             m = Chem.MolFromSmiles(smi) if smi else None
