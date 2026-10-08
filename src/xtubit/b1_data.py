@@ -125,5 +125,14 @@ def scaffold_split(df: pd.DataFrame, train_frac: float = 0.70, val_frac: float =
         else:
             test.extend(g)
 
+    # Invariant: Guarantee zero scaffold overlap between splits
+    train_scaffolds = set(df.loc[train, "scaffold"])
+    val_scaffolds = set(df.loc[val, "scaffold"])
+    test_scaffolds = set(df.loc[test, "scaffold"])
+    assert not (train_scaffolds & val_scaffolds), "Data leakage: train and val share scaffolds"
+    assert not (train_scaffolds & test_scaffolds), "Data leakage: train and test share scaffolds"
+    assert not (val_scaffolds & test_scaffolds), "Data leakage: val and test share scaffolds"
+
     return df.loc[train].copy(), df.loc[val].copy(), df.loc[test].copy()
+
 

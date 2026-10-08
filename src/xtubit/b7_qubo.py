@@ -18,6 +18,7 @@ def build_yanagisawa_qubo(
     fragment_id: torch.Tensor,
     A=1.0, B=5.0, C=5.0, D=25.0,
     pair_convention="upper",
+    placement_ids: Sequence[str] | None = None,
 ):
     """Build the upper-triangle version of the published four-term Hamiltonian.
 
@@ -42,7 +43,9 @@ def build_yanagisawa_qubo(
     Q.diagonal().copy_(A * dG - 0.5 * D)
     Q = 0.5 * (Q + Q.T)
     nfrag = int(torch.unique(fragment_id).numel())
-    return QuboBundle(Q=Q, onehot_constant=0.5 * D * nfrag, variable_map=[])
+    vmap = build_variable_map(fragment_id, placement_ids=placement_ids)
+    return QuboBundle(Q=Q, onehot_constant=0.5 * D * nfrag, variable_map=vmap)
+
 
 
 def build_variable_map(fragment_id: torch.Tensor, placement_ids: Sequence[str] | None = None):

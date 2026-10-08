@@ -2458,12 +2458,13 @@ with tab_solvers:
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         with res_col1:
             st.metric(
-                "Thermodynamic Binding Free Energy (ΔG)",
+                "Calibrated Binding ΔG (pIC50-derived)",
                 f"{cand_dG_bind:.2f} kcal/mol",
                 delta=delta_lead_str,
                 delta_color=delta_color,
-                help="Standard Gibbs free energy of binding (ΔG = -RT ln Kd = -1.364 * pIC50 kcal/mol at 298.15 K). Reference TAM16 ground-state is -9.17 kcal/mol."
+                help="Standard Gibbs free energy of binding estimated via thermodynamic relation (ΔG = -RT ln Kd = -1.364 * pIC50 kcal/mol at 298.15 K). Reference TAM16 ground-state is -9.17 kcal/mol."
             )
+
         with res_col2:
             st.metric(
                 "MMFF94 Pocket Energy",
@@ -2622,7 +2623,8 @@ with tab_solvers:
         with m_s1:
             st.metric("Fastest Solver Engine", str(best_solver["solver"]), delta=f"{best_solver['tts_99']:.3f}s TTS99")
         with m_s2:
-            st.metric("Global Ground-State Hit Rate", f"{best_solver['p_success']*100:.0f}%", delta="100% Feasible")
+            st.metric("Best-State Attainment Rate", f"{best_solver['p_success']*100:.0f}%", delta="100% Feasible (post-repair)")
+
         with m_s3:
             if not spsa_solver.empty:
                 speedup = spsa_solver.iloc[0]["tts_99"] / best_solver["tts_99"]

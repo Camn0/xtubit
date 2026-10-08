@@ -64,8 +64,14 @@ def get_scscore_model() -> SCScoreNetwork:
     return _SCSCORE_MODEL
 
 
-def calculate_scscore(mol: Chem.Mol) -> float:
-    """Calculate Coley et al. Synthetic Complexity Score (SCScore).
+def estimate_synthetic_complexity(mol: Chem.Mol) -> float:
+    """Estimate Synthetic Complexity Score on a [1.0, 5.0] scale inspired by Coley et al.
+    
+    Uses analytical topological complexity descriptors (heavy atoms, ring count, chiral centers,
+    Fsp3, rotatable bonds, heteroatoms) blended with a fingerprint surrogate network.
+    
+    Scientific Note: This is an analytical and topological complexity heuristic calibrated
+    against landmark compounds, not a loaded Coley et al. checkpoint trained on Reaxys.
     
     Returns a float strictly in [1.0, 5.0]:
     - 1.0 - 1.8: Simple starting materials and solvents (e.g., benzene, ethanol, bromobenzene)
@@ -73,6 +79,7 @@ def calculate_scscore(mol: Chem.Mol) -> float:
     - 2.5 - 3.8: Typical drug-like leads and clinical candidates (e.g., TAM16, aspirin, ibuprofen)
     - 3.8 - 5.0: Complex natural products, macrocycles, dense stereocenters (e.g., paclitaxel, erythromycin)
     """
+
     if mol is None:
         return 3.0
 
@@ -123,6 +130,11 @@ def calculate_scscore(mol: Chem.Mol) -> float:
     # Blend 85% topological calibration with 15% fingerprint surrogate
     final_sc = 0.85 * topo_score + 0.15 * nn_score
     return float(np.clip(round(final_sc, 2), 1.0, 5.0))
+
+
+# Alias for backwards compatibility with earlier module naming
+calculate_scscore = estimate_synthetic_complexity
+
 
 
 # SMARTS definitions for key strategic medicinal chemistry disconnections

@@ -1,9 +1,14 @@
-"""Resistance Mutation Profiling Panel Module (Task 4.2).
+"""Computational Mutation Sensitivity and Perturbation Analysis Module.
 
-Models clinically and experimentally selected Pks13 resistance mutations
-(Asp1644Gly, Asn1640Ala, Phe1585Leu) to evaluate candidate resilience,
-calculating the Resistance Penalty (ΔΔG_res = E_mutant - E_WT) and Resilience Index.
+Provides a structural perturbation model for evaluating candidate sensitivity across
+Pks13 active-site variants (Asp1644Gly, Asp1607Asn, Asp1644Tyr, Asn1640Ala, Phe1585Leu).
+Calculates the computational resistance shift (ΔΔG_res = E_mutant - E_WT) and heuristic retention index.
+
+Scientific Note: This is an active-site pocket perturbation heuristic modeling the energetic
+impact of reported clinical/escape mutations on the docking Hamiltonian, not a full molecular
+dynamics free-energy perturbation (FEP) calculation.
 """
+
 
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
