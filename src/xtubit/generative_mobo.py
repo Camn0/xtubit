@@ -11,6 +11,7 @@ Empirically calibrated to Pks13 literature SAR (Aggarwal et al. 2017, Krieger et
 
 from __future__ import annotations
 import random
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Set
 import numpy as np
 import pandas as pd
@@ -361,7 +362,7 @@ def screen_and_rank_analogs(
     X = torch.tensor(df[feature_cols].values, dtype=torch.float32)
 
     if surrogate_model is None:
-        # Default pre-trained Bayesian surrogate architecture
+        # Variational Bayesian linear surrogate trained on empirical Pks13 bioactivity data
         torch.manual_seed(seed)
         in_dim = len(feature_cols)
         surrogate = torch.nn.Sequential(
@@ -369,6 +370,29 @@ def screen_and_rank_analogs(
             torch.nn.SiLU(),
             BayesianLinear(32, 1, prior_sigma=0.1)
         )
+        train_path = Path("data/raw/pks13_compounds.csv")
+        if train_path.exists():
+            df_train_raw = pd.read_csv(train_path)
+            train_recs = []
+            for _, r in df_train_raw.iterrows():
+                m = Chem.MolFromSmiles(r["smiles"])
+                if m is not None:
+                    f = featurize(m, mol_id=r["mol_id"], allow_sa_fallback=True)
+                    f["pIC50"] = float(r["pIC50"])
+                    train_recs.append(f)
+            if train_recs:
+                df_fit = pd.DataFrame(train_recs)
+                X_fit = torch.tensor(df_fit[feature_cols].values, dtype=torch.float32)
+                y_fit = torch.tensor(df_fit["pIC50"].values, dtype=torch.float32)
+                opt = torch.optim.Adam(surrogate.parameters(), lr=0.02)
+                for _ in range(80):
+                    opt.zero_grad()
+                    p = surrogate(X_fit).squeeze(-1)
+                    loss = torch.nn.functional.mse_loss(p, y_fit) + 1e-3 * sum(
+                        m.kl() for m in surrogate.modules() if isinstance(m, BayesianLinear)
+                    ) / len(y_fit)
+                    loss.backward()
+                    opt.step()
     else:
         surrogate = surrogate_model
 
@@ -379,17 +403,17 @@ def screen_and_rank_analogs(
             mc_draws.append(surrogate(X).squeeze(-1))
     stacked = torch.stack(mc_draws, dim=0)
 
-    # Base predicted affinity mu and epistemic uncertainty sigma
-    # Offset so TAM16-like leads center at ~6.7 pIC50
-    base_mu = stacked.mean(dim=0).numpy() + 6.5
+    # Base predicted affinity mu and epistemic uncertainty sigma from trained surrogate
+    base_mu = stacked.mean(dim=0).numpy()
     base_sigma = stacked.std(dim=0, unbiased=True).numpy()
-    base_sigma = np.clip(base_sigma, 0.15, 0.95)
+    base_sigma = np.clip(base_sigma, 0.10, 1.20)
 
     df["mu"] = np.round(base_mu, 3)
     df["sigma"] = np.round(base_sigma, 3)
 
     # Ensure sa_score alias exists
     df["sa_score"] = df["sa"]
+
 
     # 2. Multi-Objective Pareto Frontier & qPMHI Acquisition
     mu_vals = df["mu"].values

@@ -96,28 +96,34 @@ def pic50_from_nm(value_nm: float) -> float:
     return 9.0 - math.log10(value_nm)
 
 
-def scaffold_split(df: pd.DataFrame, train_frac=0.75, val_frac=0.125):
+def scaffold_split(df: pd.DataFrame, train_frac: float = 0.70, val_frac: float = 0.15):
+    """Strict Bemis-Murcko scaffold split preserving scaffold exclusivity.
+    
+    Guarantees that molecules sharing the exact same Murcko scaffold are never
+    split across training, validation, or test sets.
+    """
     groups = {s: list(idx) for s, idx in df.groupby("scaffold").groups.items()}
     ordered = sorted(groups.values(), key=len, reverse=True)
     n = len(df)
-    n_train = max(1, int(train_frac * n))
-    n_val = max(1, int((train_frac + val_frac) * n))
+    n_train = max(1, int(round(train_frac * n)))
+    n_val = max(1, int(round(val_frac * n)))
+
     train, val, test = [], [], []
+
+    if len(ordered) >= 3:
+        # Guarantee at least one distinct scaffold in validation and test
+        val.extend(ordered.pop())
+        test.extend(ordered.pop())
+    elif len(ordered) == 2:
+        val.extend(ordered.pop())
+
     for g in ordered:
-        if len(train) + len(g) <= n_train:
+        if len(train) + len(g) <= n_train or (len(train) == 0):
             train.extend(g)
-        elif len(train) + len(val) + len(g) <= n_val:
+        elif len(val) + len(g) <= n_val or (len(val) == 0 and len(ordered) >= 3):
             val.extend(g)
         else:
-            for idx in g:
-                if len(train) < n_train:
-                    train.append(idx)
-                elif len(train) + len(val) < n_val:
-                    val.append(idx)
-                else:
-                    test.append(idx)
-    if n >= 3 and not val and len(train) > 1:
-        val.append(train.pop())
-    if n >= 3 and not test and len(train) > 1:
-        test.append(train.pop())
+            test.extend(g)
+
     return df.loc[train].copy(), df.loc[val].copy(), df.loc[test].copy()
+

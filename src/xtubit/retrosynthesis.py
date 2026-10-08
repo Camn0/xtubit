@@ -1,9 +1,9 @@
 """Retrosynthesis and Synthetic Accessibility Scoring Module.
 
 Implements:
-1. Coley et al. (2018) Synthetic Complexity Score (SCScore) surrogate [1.0 to 5.0 scale].
-2. Forward synthetic step count estimator based on strategic disconnections (amide, biaryl, etc.).
-3. Commercial building block (Enamine / catalog) feasibility validation.
+1. Synthetic Complexity Heuristic Surrogate [1.0 to 5.0 scale, inspired by Coley et al. (2018)].
+2. Forward synthetic step count estimator based on strategic disconnections (amide, biaryl, ester, etc.).
+3. Commercial building block feasibility estimation.
 4. Standardized forward synthetic step constraint (steps <= 4).
 5. Retrosynthesis-augmented qPMHI evaluation.
 """
@@ -20,7 +20,8 @@ from rdkit.Chem import BRICS
 
 
 class SCScoreNetwork(nn.Module):
-    """Calibrated neural network surrogate for Coley et al. SCScore."""
+    """Calibrated neural network surrogate for synthetic complexity (1.0 to 5.0 scale)."""
+
 
     def __init__(self, fp_dim: int = 1024, desc_dim: int = 6):
         super().__init__()

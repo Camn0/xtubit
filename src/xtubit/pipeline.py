@@ -95,10 +95,22 @@ def run_stage_b2(df: pd.DataFrame, out_dir: Path) -> Path:
 def run_stage_b3_b4(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     """Stage B3/B4: Bayesian GNN surrogate modeling and uncertainty calibration."""
     logger.info("Executing Stage B3/B4: Bayesian surrogate and uncertainty calibration...")
-    # Feature extraction from molecular properties as surrogate inputs
     feats = ["qed", "sa", "mw", "logp", "hbd", "hba", "rot_bonds"]
-    X = torch.tensor(df[feats].values, dtype=torch.float32)
-    y = torch.tensor(df["pIC50"].values, dtype=torch.float32)
+
+    # Load strict train/val/test splits to eliminate calibration data leakage
+    train_path = out_dir / "train.parquet"
+    val_path = out_dir / "val.parquet"
+    test_path = out_dir / "test.parquet"
+
+    if train_path.exists() and val_path.exists():
+        train_df = pd.read_parquet(train_path)
+        val_df = pd.read_parquet(val_path)
+        test_df = pd.read_parquet(test_path) if test_path.exists() else pd.DataFrame()
+    else:
+        train_df, val_df, test_df = scaffold_split(df, train_frac=0.70, val_frac=0.15)
+
+    X_train = torch.tensor(train_df[feats].values, dtype=torch.float32)
+    y_train = torch.tensor(train_df["pIC50"].values, dtype=torch.float32)
 
     # Variational Bayesian linear model
     in_dim = len(feats)
@@ -112,24 +124,35 @@ def run_stage_b3_b4(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     optimizer = torch.optim.Adam(bayes_head.parameters(), lr=0.01)
     for epoch in range(120):
         optimizer.zero_grad()
-        preds = bayes_head(X).squeeze(-1)
-        mse = torch.nn.functional.mse_loss(preds, y)
+        preds = bayes_head(X_train).squeeze(-1)
+        mse = torch.nn.functional.mse_loss(preds, y_train)
         kl = sum(m.kl() for m in bayes_head.modules() if isinstance(m, BayesianLinear))
-        loss = mse + 1e-3 * kl / len(y)
+        loss = mse + 1e-3 * kl / len(y_train)
         loss.backward()
         optimizer.step()
 
-    # Monte Carlo posterior sampling (M=50)
+    # Out-of-sample uncertainty calibration strictly on validation set
+    if len(val_df) > 0:
+        X_val = torch.tensor(val_df[feats].values, dtype=torch.float32)
+        y_val = torch.tensor(val_df["pIC50"].values, dtype=torch.float32)
+        with torch.no_grad():
+            val_samples = [bayes_head(X_val).squeeze(-1) for _ in range(50)]
+        val_stacked = torch.stack(val_samples, dim=0)
+        mu_val = val_stacked.mean(dim=0)
+        sigma_val = val_stacked.std(dim=0, unbiased=True).clamp_min(1e-4)
+        tau = calibrate_sigma(mu_val, sigma_val, y_val)
+    else:
+        tau = 1.0
+
+    # Posterior inference across all candidate compounds
+    X_all = torch.tensor(df[feats].values, dtype=torch.float32)
     samples = []
     with torch.no_grad():
         for _ in range(50):
-            samples.append(bayes_head(X).squeeze(-1))
+            samples.append(bayes_head(X_all).squeeze(-1))
     stacked = torch.stack(samples, dim=0)
     mu = stacked.mean(dim=0)
     sigma = stacked.std(dim=0, unbiased=True).clamp_min(1e-4)
-
-    # Uncertainty calibration via validation NLL search
-    tau = calibrate_sigma(mu, sigma, y)
     calibrated_sigma = sigma * tau
 
     df_out = df.copy()
@@ -137,8 +160,17 @@ def run_stage_b3_b4(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     df_out["sigma"] = calibrated_sigma.numpy()
     df_out["tau"] = tau
 
-    logger.info("Stage B3/B4 complete: calibrated tau=%.4f, mean sigma=%.4f", tau, float(calibrated_sigma.mean()))
+    # Annotate partition provenance
+    train_ids = set(train_df["mol_id"])
+    val_ids = set(val_df["mol_id"]) if len(val_df) > 0 else set()
+    df_out["split"] = df_out["mol_id"].apply(
+        lambda m: "train" if m in train_ids else ("val" if m in val_ids else "test")
+    )
+
+    logger.info("Stage B3/B4 complete: calibrated tau=%.4f (validation set only), mean sigma=%.4f",
+                tau, float(calibrated_sigma.mean()))
     return df_out
+
 
 
 def run_stage_b5(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
@@ -293,41 +325,75 @@ def run_stage_b8(bundle_data: Dict[str, Any], out_dir: Path) -> List[Dict[str, A
 
 
 def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any]], out_dir: Path) -> Dict[str, Any]:
-    """Stage B9: Constraint repair, 3D pose reconstitution, RMSD, and TTS summary."""
+    """Stage B9: Multi-solver constraint repair, 3D pose reconstitution, and RMSD evaluation."""
     logger.info("Executing Stage B9: One-hot repair, pose reconstitution, and RMSD evaluation...")
     fragment_id = bundle_data["fragment_id"].tolist()
     dG = bundle_data["dG"].tolist()
+    coords = bundle_data.get("coords")
 
     groups = []
     unique_frags = sorted(list(set(fragment_id)))
     for f in unique_frags:
         groups.append([i for i, fid in enumerate(fragment_id) if fid == f])
 
-    best_solution = solver_results[0]["best_bits"]
-    repaired_bits, violations = repair_onehot(best_solution, groups, dG)
+    from .post_anneal import (
+        decode_bitstring_to_subpockets,
+        stitch_fragments_to_molecule,
+        minimize_ligand_in_pocket,
+        compute_crystal_rmsd,
+    )
 
-    # Dynamically compute heavy-atom RMSD vs. PDB 5V3Y crystal pose (1.98 Å target)
-    sdf_tam16 = out_dir / "conformers" / "TAM16.sdf"
-    if sdf_tam16.exists() and violations == 0:
-        from .post_anneal import compute_crystal_rmsd
-        suppl = Chem.SDMolSupplier(str(sdf_tam16))
-        pred_mol = suppl[0] if suppl and len(suppl) > 0 else None
-        if pred_mol is not None:
-            actual_rmsd = compute_crystal_rmsd(pred_mol)
-        else:
-            actual_rmsd = 1.74
-    else:
-        actual_rmsd = 2.15
+    solver_evaluations = []
+    best_overall_rmsd = 999.0
+    best_overall_solver = None
+    best_repaired_bits = None
+
+    for s_res in solver_results:
+        raw_bits = s_res["best_bits"]
+        repaired_bits, violations = repair_onehot(raw_bits, groups, dG)
+
+        # 3D structure reconstruction from decoded fragment placement coordinates
+        decoded = decode_bitstring_to_subpockets(
+            [int(b) for b in repaired_bits.tolist()],
+            poses_per_subpocket=bundle_data.get("poses_per_subpocket", 10),
+            n_subpockets=len(unique_frags)
+        )
+        stitched_mol = stitch_fragments_to_molecule(
+            decoded,
+            variable_coords=coords,
+            poses_per_subpocket=bundle_data.get("poses_per_subpocket", 10)
+        )
+        relaxed_res = minimize_ligand_in_pocket(stitched_mol, max_steps=50)
+
+        # Heavy-atom RMSD vs authentic PDB 5V3Y crystal structure
+        actual_rmsd = compute_crystal_rmsd(relaxed_res["minimized_mol"])
+
+        eval_entry = {
+            "solver": s_res["solver"],
+            "raw_energy": round(float(s_res.get("best_energy", s_res.get("energy", 0.0))), 3),
+            "constraint_violations": int(violations),
+            "repaired_rmsd_A": actual_rmsd,
+            "rmsd_under_2A_success": bool(actual_rmsd < 2.0),
+            "repaired_bits": repaired_bits.tolist(),
+        }
+        solver_evaluations.append(eval_entry)
+
+        if actual_rmsd < best_overall_rmsd:
+            best_overall_rmsd = actual_rmsd
+            best_overall_solver = s_res["solver"]
+            best_repaired_bits = repaired_bits.tolist()
 
     summary = {
         "status": "COMPLETED",
         "reference_pdb": "5V3Y",
+        "reference_resolution_A": 1.98,
         "lead_compound": "TAM16",
         "total_qubo_variables": len(fragment_id),
-        "constraint_violations": violations,
-        "repaired_solution_bits": repaired_bits.tolist(),
-        "heavy_atom_rmsd_A": actual_rmsd,
-        "rmsd_under_2A_success": bool(actual_rmsd < 2.0),
+        "best_solver": best_overall_solver,
+        "heavy_atom_rmsd_A": best_overall_rmsd,
+        "rmsd_under_2A_success": bool(best_overall_rmsd < 2.0),
+        "repaired_solution_bits": best_repaired_bits,
+        "solver_evaluations": solver_evaluations,
         "solver_benchmarks": solver_results,
     }
 
@@ -336,9 +402,10 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
     with open(metrics_dir / "summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
-    logger.info("Stage B9 complete: Heavy-atom RMSD=%.2f A (Success=%s). Metrics saved to %s",
-                actual_rmsd, actual_rmsd < 2.0, metrics_dir / "summary.json")
+    logger.info("Stage B9 complete: Best solver %s achieved Heavy-atom RMSD=%.2f A (Success=%s). Metrics saved to %s",
+                best_overall_solver, best_overall_rmsd, best_overall_rmsd < 2.0, metrics_dir / "summary.json")
     return summary
+
 
 
 def run_pipeline(raw_csv: str = "data/raw/pks13_compounds.csv", out_dir: str = "data/processed") -> Dict[str, Any]:

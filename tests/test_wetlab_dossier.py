@@ -10,21 +10,21 @@ from xtubit.wetlab_dossier import (
 
 def test_preclinical_specification_generation():
     """Verify chemical specification sheet contains IUPAC, formula, MW, and InChI."""
-    tam16_smi = "CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4"
+    tam16_smi = "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23"
     mol = Chem.MolFromSmiles(tam16_smi)
     specs = generate_preclinical_specification_sheet(mol, mol_id="TAM16")
 
     assert specs["mol_id"] == "TAM16"
     assert specs["canonical_smiles"] is not None
-    assert specs["formula_weight_Da"] > 300.0
+    assert specs["formula_weight_Da"] > 250.0
     assert specs["clogp"] > 3.0
     assert specs["inchikey"] is not None
     assert len(specs["inchikey"]) == 27  # standard InChIKey length
 
 
 def test_commercial_building_blocks_mapping():
-    """Verify decomposition into Enamine / Mcule catalog building blocks."""
-    tam16_smi = "CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4"
+    """Verify decomposition into commercial starting material building blocks."""
+    tam16_smi = "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23"
     blocks = map_commercial_building_blocks(tam16_smi)
 
     assert len(blocks) >= 2
@@ -56,7 +56,7 @@ def test_turnkey_dossier_package_assembly():
     """Verify end-to-end turnkey dossier assembly for wet-lab handoff."""
     row = {
         "mol_id": "TAM16",
-        "smiles_can": "CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4",
+        "smiles_can": "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23",
     }
     dossier = build_turnkey_dossier_package(row, reviewer="Lead Chemist")
 
@@ -65,3 +65,4 @@ def test_turnkey_dossier_package_assembly():
     assert len(dossier["building_blocks"]) >= 2
     assert len(dossier["synthetic_scheme"]) == 2
     assert dossier["estimated_starting_materials_cost_USD"] > 0
+

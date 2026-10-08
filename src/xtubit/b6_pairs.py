@@ -53,65 +53,66 @@ def classify_pair(e_nb, e_b, chemically_bonded, threshold=500.0):
 # Pks13 Pocket Discretization & 60-90 Qubit Hamiltonian Scaling (Task 2.1)
 # ==============================================================================
 
-# 6 Pharmacophore Sub-Sites extracted from PDB 5V3Y crystallographic structure
+# 6 Pharmacophore Sub-Sites extracted from authentic PDB 5V3Y crystallographic structure
 PKS13_SUBPOCKETS: Dict[str, Dict[str, Any]] = {
     "Anchor": {
         "index": 0,
         "name": "Anchor Sub-Pocket",
-        "description": "Benzofuran core aromatic sandwich pocket (Phe1585 / Tyr1674)",
-        "center": np.array([-2.5, -0.5, -0.3]),
+        "description": "Benzofuran core aromatic sandwich pocket (Phe1585 / Tyr1674 in PDB 5V3Y)",
+        "center": np.array([4.8, 22.8, 7.3]),
         "radius": 3.5,
         "base_dG": -8.5,
     },
     "Linker": {
         "index": 1,
         "name": "Linker Sub-Pocket",
-        "description": "Amide & methylene bridge channel (Gly1534 / Ala1535)",
-        "center": np.array([1.0, 0.2, -0.2]),
+        "description": "Amide & methylene bridge channel (Gly1534 / Ala1535 in PDB 5V3Y)",
+        "center": np.array([5.7, 26.0, 6.2]),
         "radius": 2.8,
         "base_dG": -4.5,
     },
     "Tunnel": {
         "index": 2,
         "name": "Hydrophobic Tunnel",
-        "description": "Lipophilic channel leading to active site entrance (Leu1640 / Ile1641)",
-        "center": np.array([3.5, 0.5, 0.1]),
+        "description": "Lipophilic channel leading to active site entrance (Leu1638 / Ile1643 in PDB 5V3Y)",
+        "center": np.array([4.2, 24.5, 7.6]),
         "radius": 3.2,
         "base_dG": -4.0,
     },
     "P1_Cap": {
         "index": 3,
         "name": "P1 Cap Sub-Pocket",
-        "description": "Thiophene ring cavity and lipophilic cap (Val1536 / Met1589)",
-        "center": np.array([5.0, 1.8, 1.0]),
+        "description": "Lipophilic cap cavity (Val1536 / Met1589 in PDB 5V3Y)",
+        "center": np.array([2.2, 27.5, 8.4]),
         "radius": 3.0,
         "base_dG": -3.5,
     },
     "Catalytic_Triad": {
         "index": 4,
         "name": "Catalytic Triad Cleft",
-        "description": "Catalytic machinery pocket (Ser1533 nucleophile & Asp1644 acid)",
-        "center": np.array([-0.2, -1.5, -0.8]),
+        "description": "Catalytic machinery pocket (Ser1636 nucleophile & Asp1644 acid in PDB 5V3Y)",
+        "center": np.array([3.5, 27.0, 6.0]),
         "radius": 2.5,
         "base_dG": -5.2,
     },
     "Solvent_Front": {
         "index": 5,
         "name": "Solvent Front Sub-Pocket",
-        "description": "Solvent-accessible channel rim (Arg1643 / Lys1581)",
-        "center": np.array([-3.8, 2.0, 0.5]),
+        "description": "Solvent-accessible channel rim (Arg1641 / Ala1667 in PDB 5V3Y)",
+        "center": np.array([5.8, 30.5, 8.0]),
         "radius": 3.8,
         "base_dG": -3.0,
     },
 }
 
-# Connectivity graph between adjacent sub-pockets in 5V3Y TAM16 complex:
-# Anchor (0) <-> Linker (1) <-> Tunnel (2) <-> P1_Cap (3)
-# Anchor (0) <-> Catalytic_Triad (4)
-# Anchor (0) <-> Solvent_Front (5)
+# Connectivity graph between adjacent sub-pockets in authentic 5V3Y complex:
+# Anchor (0) <-> Tunnel (2) <-> Linker (1) <-> Catalytic_Triad (4)
+# Linker (1) <-> Solvent_Front (5)
+# Tunnel (2) <-> P1_Cap (3)
 PKS13_ADJACENT_SUBPOCKETS = {
-    (0, 1), (1, 2), (2, 3), (0, 4), (0, 5)
+    (0, 1), (0, 2), (1, 2), (2, 3), (1, 4), (0, 4), (1, 5)
 }
+
 
 
 def generate_scaled_pocket_placements(

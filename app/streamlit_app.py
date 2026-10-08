@@ -719,7 +719,7 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
         <div style="margin-bottom: 6px;">{clean_badge} {herg_badge} {synth_badge}</div>
         <strong>Pharmacophore & ADMET Context:</strong><br>
         • Est. Potency: <strong>~{ic50_est_nM:.1f} nM</strong> vs Pks13 catalytic pocket<br>
-        • Synthetic Route: <strong>~{steps_v} Steps</strong> ({rxn_v}) | SCScore: <strong>{scscore_v:.2f}</strong><br>
+        • Synthetic Route: <strong>~{steps_v} Steps</strong> ({rxn_v}) | Complexity Index: <strong>{scscore_v:.2f}</strong><br>
         • Aq. Solubility: <strong>~{sol_um:.1f} µM</strong> (Delaney LogS: {logs_v:.2f})<br>
         • Mouse Microsomal t½: <strong>~{t12_v:.0f} min</strong> (Liver clearance)<br>
         • Lipinski Ro5: <strong>{lip_str}</strong> | MW: <strong>{mw_val:.1f} Da</strong>
@@ -1802,7 +1802,7 @@ with tab_compare:
             {"Property": "Predicted Affinity (pIC50)", "Mol A": f"{mu_a:.2f}", "Mol B": f"{mu_b:.2f}", "Diff (A - B)": f"{mu_a - mu_b:+.2f}", "Lead (Ref)": f"{mu_ref:.2f}"},
             {"Property": "Drug-Likeness (QED)", "Mol A": f"{qed_a:.3f}", "Mol B": f"{qed_b:.3f}", "Diff (A - B)": f"{qed_a - qed_b:+.3f}", "Lead (Ref)": f"{qed_ref:.3f}"},
             {"Property": "Synthetic Difficulty (SA)", "Mol A": f"{sa_a:.2f}", "Mol B": f"{sa_b:.2f}", "Diff (A - B)": f"{sa_a - sa_b:+.2f}", "Lead (Ref)": f"{sa_ref:.2f}"},
-            {"Property": "SCScore Complexity (1-5)", "Mol A": f"{sc_a:.2f}", "Mol B": f"{sc_b:.2f}", "Diff (A - B)": f"{sc_a - sc_b:+.2f}", "Lead (Ref)": f"{sc_ref:.2f}"},
+            {"Property": "Synthetic Complexity Index (1-5)", "Mol A": f"{sc_a:.2f}", "Mol B": f"{sc_b:.2f}", "Diff (A - B)": f"{sc_a - sc_b:+.2f}", "Lead (Ref)": f"{sc_ref:.2f}"},
             {"Property": "Forward Synthetic Steps", "Mol A": f"{steps_a}", "Mol B": f"{steps_b}", "Diff (A - B)": f"{steps_a - steps_b:+d}", "Lead (Ref)": f"{steps_ref}"},
             {"Property": "Primary Coupling Reaction", "Mol A": str(row_a.get("synth_primary_rxn", "Amide Coupling")), "Mol B": str(row_b.get("synth_primary_rxn", "Amide Coupling")), "Diff (A - B)": "Tractable" if row_a.get("synth_tractable", True) else "Complex", "Lead (Ref)": str(ref_row.get("synth_primary_rxn", "Amide Coupling (1x)"))},
             {"Property": "Aqueous Solubility (µM)", "Mol A": f"{sol_a:.1f}", "Mol B": f"{sol_b:.1f}", "Diff (A - B)": f"{sol_a - sol_b:+.1f}", "Lead (Ref)": f"{sol_ref:.1f}"},
@@ -2084,11 +2084,12 @@ with tab_conformer:
                 st.success(f"**{ca_mol_id}** is now active in screening library! Visible in Tab 1, Tab 2, and Tab 4.")
 
     # ==========================================================================
-    # Paulson Lab Generative MOBO Analog Engine (Multi-Objective Evolution)
+    # Generative Medicinal Chemistry Exploration & Bayesian Acquisition Prototype
     # ==========================================================================
     st.markdown("---")
-    st.markdown("##### Generative MOBO Analog Engine (Paulson Lab Pipeline)")
-    st.caption("Active in silico fragment-based chemical evolution adapted from Paulson Lab (Generative_MOBO_qPMHI). Mines chemical fragments from Pks13 clinical leads (TAM16, X20403), applies SAR-informed mutation & biaryl crossover, and performs Bayesian GNN surrogate evaluation with multi-objective qPMHI Pareto ranking.")
+    st.markdown("##### Generative Chemistry Exploration & Bayesian Acquisition Prototype")
+    st.caption("In silico fragment-based chemical exploration inspired by the Paulson Lab qPMHI workflow. Mines chemical fragments from Pks13 clinical leads (TAM16, X20403), applies SAR-informed mutation & biaryl crossover, and performs Bayesian surrogate evaluation (trained on empirical Pks13 bioactivity data) with multi-objective Pareto ranking.")
+
 
     g_col1, g_col2, g_col3 = st.columns([1.3, 1.0, 1.1])
     with g_col1:
@@ -2196,13 +2197,14 @@ with tab_solvers:
     # Top Educational & Product Output Guide
     st.markdown("""
     <div class="mochi-info-box">
-        <strong>What Does Tab 4 Do & Which Numbers Reflect the Product?</strong><br>
-        • <strong>The Purpose of Tab 4:</strong> While Tab 1 screens candidate molecules from 2D chemical formulas, Tab 4 performs <strong>physical 3D fragment-assembly docking</strong> in the Pks13 catalytic pocket (PDB 5V3Y) using parallel tensor physics (QUBO/Ising model).<br>
-        • <strong>Ground-State Energy (kcal/mol) — The Primary Output Score:</strong> This is the thermodynamic binding free energy (ΔG) of the optimal conformer. <em>Lower (more negative) is better</em>. Calibrated to the standard Gibbs isotherm (ΔG = -1.364 · pIC50 at 298.15 K). If it is more negative than the co-crystallized clinical lead TAM16 (-9.17 kcal/mol), the candidate binds with higher thermodynamic affinity than the reference lead.<br>
-        • <strong>Pocket Feasibility:</strong> Must be <em>Strictly Feasible (0 Violations)</em> — mathematically proves that exactly 1 chemical fragment occupies each pocket sub-site with zero steric clashes.<br>
-        • <strong>Time-to-Solution (TTS99):</strong> Finding the optimal conformer in <strong>milliseconds (< 0.2 s)</strong> via digital annealing vs. 45+ minutes of classical CPU grid docking.
+        <strong>What Does Tab 4 Do & How Are Results Interpreted?</strong><br>
+        • <strong>The Purpose of Tab 4:</strong> Evaluates combinatorial fragment placements in the Pks13 catalytic pocket (PDB 5V3Y) formulated as a Quadratic Unconstrained Binary Optimization (QUBO) problem based on the Yanagisawa et al. (2024) flexible docking framework.<br>
+        • <strong>QUBO Objective Energy (kcal/mol):</strong> Represents the overall combinatorial objective ($H = A H_1 + B H_2 + C H_3 + D H_4$). Combines protein-fragment interaction energy ($H_1$), steric clash penalties ($H_2$), and covalent connectivity rewards ($H_3$). <em>Lower (more negative) is better</em>.<br>
+        • <strong>Pocket Feasibility:</strong> Assesses whether each fragment satisfies the one-hot placement constraint without steric overlap. Unfeasible raw solver bitstrings undergo one-hot constraint repair to yield physically valid 3D poses.<br>
+        • <strong>Time-to-Solution (TTS99):</strong> Benchmarks algorithmic scaling across simulated annealing (TApSA, SpSA) and Tabu-enhanced simulated bifurcation (tSB) variants.
     </div>
     """, unsafe_allow_html=True)
+
 
     mol_options = df_active["mol_id"].tolist()
 

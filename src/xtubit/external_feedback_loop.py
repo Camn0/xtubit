@@ -110,7 +110,7 @@ def evaluate_candidate_external_physics(
         decoded_poses, variable_coords=coords, poses_per_subpocket=poses_per_site
     )
     relax_res = minimize_ligand_in_pocket(
-        stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_steps
+        stitched_mol, frozen_atom_indices=[10, 11, 12, 13], max_steps=mmff_steps
     )
     rmsd_val = compute_crystal_rmsd(relax_res["minimized_mol"])
 

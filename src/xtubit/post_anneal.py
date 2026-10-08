@@ -80,14 +80,14 @@ def stitch_fragments_to_molecule(
     if res != 0:
         AllChem.EmbedMolecule(mol_h, useRandomCoords=True, randomSeed=42)
 
-    # If variable coordinates from QUBO placement are provided, align conformer
+    # If variable coordinates from QUBO placement are provided, position fragments
     if variable_coords is not None and isinstance(variable_coords, torch.Tensor):
         coords_np = variable_coords.detach().cpu().numpy()
         conf = mol_h.GetConformer()
         n_atoms = mol_h.GetNumAtoms()
-        # Apply pocket center translation
-        anchor_pose = decoded_poses.get(0, 0)
-        anchor_idx = anchor_pose
+
+        # 1. Translate molecule centroid to the QUBO-selected Anchor sub-pocket position
+        anchor_idx = decoded_poses.get(0, 0)
         anchor_coord = coords_np[anchor_idx] if anchor_idx < len(coords_np) else PKS13_SUBPOCKETS["Anchor"]["center"]
         conf_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(min(n_atoms, 22))], axis=0)
         shift = anchor_coord - conf_centroid
@@ -95,7 +95,32 @@ def stitch_fragments_to_molecule(
             pos = conf.GetAtomPosition(i)
             conf.SetAtomPosition(i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2]))
 
+        # 2. Partition atoms across 6 sub-pocket functional regions for sub-pocket deformation
+        # 0: Benzofuran core, 1: Carbonyl linker, 2: Tunnel alkyl, 3: Cap, 4: Handle, 5: Solvent front
+        subpocket_atom_groups = {
+            0: [10, 11, 12, 13, 14, 15, 16, 17],  # Benzofuran core
+            1: [1, 2, 3],                          # Carbonyl / ester bridge
+            2: [7, 8],                             # Tunnel alkyl / ethyl
+            3: [5, 6],                             # P1 cap / methyl
+            4: [0, 4],                             # Active-site ester handle
+            5: [9, 18, 19, 20, 21],                # Solvent front
+        }
+
+        for p_id, p_pose in decoded_poses.items():
+            var_idx = p_id * poses_per_subpocket + p_pose
+            if var_idx < len(coords_np):
+                target_coord = coords_np[var_idx]
+                atom_indices = subpocket_atom_groups.get(p_id, [])
+                valid_atoms = [i for i in atom_indices if i < n_atoms]
+                if valid_atoms:
+                    group_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in valid_atoms], axis=0)
+                    delta = (target_coord - group_centroid) * 0.15  # Elastic displacement
+                    for i in valid_atoms:
+                        pos = conf.GetAtomPosition(i)
+                        conf.SetAtomPosition(i, (pos.x + delta[0], pos.y + delta[1], pos.z + delta[2]))
+
     return mol_h
+
 
 
 def minimize_ligand_in_pocket(
@@ -165,9 +190,23 @@ def compute_crystal_rmsd(
     pred_mol: Chem.Mol,
     ref_mol: Optional[Chem.Mol] = None
 ) -> float:
-    """Compute heavy-atom root mean square deviation (RMSD) vs. reference crystal structure."""
+    """Compute heavy-atom root mean square deviation (RMSD) vs. authentic PDB 5V3Y crystal structure."""
+    from pathlib import Path
+    from rdkit.Chem import rdFMCS
+
     if ref_mol is None:
-        # Default reference is canonical TAM16 conformer
+        # Load authentic crystallographic coordinates from PDB 5V3Y
+        sdf_path = Path("data/raw/5v3y_ligand.sdf")
+        pdb_path = Path("data/raw/5v3y_ligand.pdb")
+        if sdf_path.exists():
+            suppl = Chem.SDMolSupplier(str(sdf_path))
+            if len(suppl) > 0 and suppl[0] is not None:
+                ref_mol = suppl[0]
+        elif pdb_path.exists():
+            ref_mol = Chem.MolFromPDBFile(str(pdb_path))
+
+    if ref_mol is None:
+        # Fallback reference if raw PDB data is unavailable in test environment
         ref = Chem.MolFromSmiles(TAM16_SMILES)
         ref = Chem.AddHs(ref)
         AllChem.EmbedMolecule(ref, randomSeed=42)
@@ -177,15 +216,34 @@ def compute_crystal_rmsd(
     ref_clean = Chem.RemoveHs(Chem.Mol(ref_mol))
 
     try:
-        rmsd = float(rdMolAlign.GetBestRMS(pred_clean, ref_clean))
+        # Direct isomorphism alignment if atom topology matches
+        if pred_clean.GetNumHeavyAtoms() == ref_clean.GetNumHeavyAtoms():
+            rmsd = float(rdMolAlign.GetBestRMS(pred_clean, ref_clean))
+            return round(rmsd, 3)
     except Exception:
-        # Fallback to direct coordinate difference
-        c1 = pred_clean.GetConformer().GetPositions()
-        c2 = ref_clean.GetConformer().GetPositions()
-        min_len = min(len(c1), len(c2))
-        rmsd = float(np.sqrt(np.mean(np.sum((c1[:min_len] - c2[:min_len]) ** 2, axis=1))))
+        pass
 
+    try:
+        # Maximum Common Substructure (MCS) alignment against authentic PDB 5V3Y crystal ligand
+        res = rdFMCS.FindMCS([pred_clean, ref_clean], timeout=5)
+        if res.numAtoms >= 6:
+            mcs_mol = Chem.MolFromSmarts(res.smartsString)
+            match_pred = pred_clean.GetSubstructMatch(mcs_mol)
+            match_ref = ref_clean.GetSubstructMatch(mcs_mol)
+            if len(match_pred) >= 6 and len(match_ref) >= 6:
+                atom_map = list(zip(match_pred, match_ref))
+                rmsd = float(rdMolAlign.AlignMol(pred_clean, ref_clean, atomMap=atom_map))
+                return round(rmsd, 3)
+    except Exception:
+        pass
+
+    # Coordinate distance fallback
+    c1 = pred_clean.GetConformer().GetPositions()
+    c2 = ref_clean.GetConformer().GetPositions()
+    min_len = min(len(c1), len(c2))
+    rmsd = float(np.sqrt(np.mean(np.sum((c1[:min_len] - c2[:min_len]) ** 2, axis=1))))
     return round(rmsd, 3)
+
 
 
 def export_multi_model_sdf(

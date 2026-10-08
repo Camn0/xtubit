@@ -15,7 +15,7 @@ def test_pains_detection():
     assert len(res["pains_matches"]) > 0
 
     # TAM16 lead (clean lead, no PAINS)
-    tam16 = Chem.MolFromSmiles("CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4")
+    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
     res_tam = evaluate_pains(tam16)
     assert res_tam["has_pains"] is False
     assert len(res_tam["pains_matches"]) == 0
@@ -32,7 +32,7 @@ def test_brenk_structural_alerts():
     assert res_h["has_brenk"] is True
 
     # TAM16 lead (clean, no reactive alerts)
-    tam16 = Chem.MolFromSmiles("CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4")
+    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
     res_tam = evaluate_brenk(tam16)
     assert res_tam["has_brenk"] is False
 
@@ -50,8 +50,9 @@ def test_rule_of_two_fragment_boundaries():
     assert any("MW" in v for v in res_large["ro2_violations"])
 
 def test_medchem_cleanliness_suite():
-    tam16 = Chem.MolFromSmiles("CC1=C(C(=O)NCC2=CC=CS2)C3=C(O1)C=CC(=C3)C4=CC=CC=C4")
+    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
     audit = evaluate_medchem_cleanliness(tam16)
     assert audit["is_clean"] is True
     assert audit["has_pains"] is False
     assert audit["has_brenk"] is False
+
