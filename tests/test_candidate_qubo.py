@@ -155,3 +155,107 @@ def test_receptor_specific_qubo_four_pdbs():
     assert not torch.allclose(q_8tqv, q_8tqg)
     assert not torch.allclose(q_5v40, q_8tqg)
 
+
+def test_brics_chemical_decomposition():
+    """Verify candidate ligands decompose via BRICS / rotatable bonds with full atom conservation."""
+    from rdkit import Chem
+    from xtubit.b6_pairs import decompose_candidate_to_fragments
+    mol_tam16 = Chem.MolFromSmiles(TAM16_SMILES)
+    grps_tam16, atts_tam16 = decompose_candidate_to_fragments(mol_tam16, n_subpockets=4)
+    total_atoms_tam16 = sum(len(g) for g in grps_tam16)
+    assert total_atoms_tam16 == mol_tam16.GetNumHeavyAtoms(), "All heavy atoms must be conserved in TAM16"
+    assert len(grps_tam16) >= 3, "TAM16 must decompose into at least 3 chemical fragments"
+    assert len(atts_tam16) >= 2, "TAM16 fragments must track inter-fragment attachments"
+
+    mol_x = Chem.MolFromSmiles(X20403_SMILES)
+    grps_x, atts_x = decompose_candidate_to_fragments(mol_x, n_subpockets=4)
+    total_atoms_x = sum(len(g) for g in grps_x)
+    assert total_atoms_x == mol_x.GetNumHeavyAtoms(), "All heavy atoms must be conserved in X20403"
+    assert len(grps_x) >= 3, "X20403 must decompose into multiple chemical fragments"
+
+
+def test_solver_bits_causally_alter_3d_geometry():
+    """Verify that distinct QUBO spin bitstrings causally reconstruct distinct 3D poses (RMSD > 1.0 A)."""
+    from rdkit import Chem
+    from xtubit.post_anneal import stitch_fragments_to_molecule
+    qubo_res = build_candidate_qubo(TAM16_SMILES, receptor="5V3Y", poses_per_subpocket=3, n_subpockets=4)
+    frag_poses = qubo_res["fragment_poses_coords"]
+    atom_grps = qubo_res["atom_groups"]
+
+    # Reconstruct pose for state 1 (pose 0 for all fragments)
+    mol1 = stitch_fragments_to_molecule(
+        {0: 0, 1: 0, 2: 0, 3: 0},
+        variable_coords=qubo_res["coords"],
+        poses_per_subpocket=3,
+        candidate_smiles=TAM16_SMILES,
+        fragment_poses_coords=frag_poses,
+        atom_groups=atom_grps
+    )
+
+    # Reconstruct pose for state 2 (alternative poses)
+    mol2 = stitch_fragments_to_molecule(
+        {0: 2, 1: 1, 2: 2, 3: 1},
+        variable_coords=qubo_res["coords"],
+        poses_per_subpocket=3,
+        candidate_smiles=TAM16_SMILES,
+        fragment_poses_coords=frag_poses,
+        atom_groups=atom_grps
+    )
+
+    n_h = Chem.RemoveHs(mol1).GetNumHeavyAtoms()
+    c1 = np.array([list(mol1.GetConformer().GetAtomPosition(i)) for i in range(n_h)])
+    c2 = np.array([list(mol2.GetConformer().GetAtomPosition(i)) for i in range(n_h)])
+
+    rmsd = np.sqrt(np.mean(np.sum((c1 - c2) ** 2, axis=-1)))
+    assert rmsd > 1.0, f"Expected causal geometric divergence (RMSD > 1.0 A), got {rmsd:.2f} A"
+
+
+def test_receptor_conformation_causally_changes_pose():
+    """Verify that docking into distinct receptors (5V3Y vs 8TQV) generates distinct 3D poses."""
+    from rdkit import Chem
+    from xtubit.post_anneal import stitch_fragments_to_molecule
+    q_5v3y = build_candidate_qubo(TAM16_SMILES, receptor="5V3Y")
+    q_8tqv = build_candidate_qubo(TAM16_SMILES, receptor="8TQV")
+
+    mol_5v3y = stitch_fragments_to_molecule(
+        {0: 0, 1: 0, 2: 0, 3: 0},
+        variable_coords=q_5v3y["coords"],
+        candidate_smiles=TAM16_SMILES,
+        fragment_poses_coords=q_5v3y["fragment_poses_coords"],
+        atom_groups=q_5v3y["atom_groups"]
+    )
+
+    mol_8tqv = stitch_fragments_to_molecule(
+        {0: 0, 1: 0, 2: 0, 3: 0},
+        variable_coords=q_8tqv["coords"],
+        candidate_smiles=TAM16_SMILES,
+        fragment_poses_coords=q_8tqv["fragment_poses_coords"],
+        atom_groups=q_8tqv["atom_groups"]
+    )
+
+    n_h = Chem.RemoveHs(mol_5v3y).GetNumHeavyAtoms()
+    c_5v3y = np.array([list(mol_5v3y.GetConformer().GetAtomPosition(i)) for i in range(n_h)])
+    c_8tqv = np.array([list(mol_8tqv.GetConformer().GetAtomPosition(i)) for i in range(n_h)])
+
+    cartesian_rmsd = np.sqrt(np.mean(np.sum((c_5v3y - c_8tqv) ** 2, axis=-1)))
+    assert cartesian_rmsd > 5.0, f"Expected distinct in-pocket frames across 5V3Y and 8TQV, got {cartesian_rmsd:.2f} A"
+
+
+def test_atom_typed_docking_score_penalizes_steric_clashes():
+    """Verify atom-typed scoring function heavily penalizes steric overlap while rewarding H-bonds."""
+    from xtubit.b6_pairs import compute_atom_typed_docking_score
+    pock_coords = np.array([[0.0, 0.0, 0.0]])
+    pock_elems = ["O"]
+
+    # Clash: donor N placed 1.2 A away (far below sum of vdW radii ~ 3.07 A)
+    frag_clash = np.array([[0.0, 0.0, 1.2]])
+    score_clash = compute_atom_typed_docking_score(frag_clash, pock_coords, ["N"], pock_elems)
+
+    # Ideal H-bond contact: donor N placed 2.85 A away
+    frag_hbond = np.array([[0.0, 0.0, 2.85]])
+    score_hbond = compute_atom_typed_docking_score(frag_hbond, pock_coords, ["N"], pock_elems)
+
+    assert score_clash > 0.0, "Steric overlap must produce positive penalty"
+    assert score_hbond < 0.0, "Optimal H-bond contact must produce favorable negative score"
+    assert score_clash > score_hbond + 3.0, "Clash penalty must strongly exceed favorable contact"
+

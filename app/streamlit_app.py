@@ -2380,6 +2380,9 @@ with tab_solvers:
     elif "8TQG" in pocket_target:
         pocket_energy_offset = +0.40  # Open loop entropic penalty
 
+    cand_frag_poses = None
+    cand_atom_groups = None
+
     if "120 Qubits" in hamiltonian_scale or "90 Qubits" in hamiltonian_scale or "60 Qubits" in hamiltonian_scale:
         from xtubit.b6_pairs import build_scaled_pks13_qubo
         if "120 Qubits" in hamiltonian_scale:
@@ -2418,6 +2421,8 @@ with tab_solvers:
         coords_tensor = cand_qubo["coords"]
         poses_per_site = 3
         n_pockets = 4
+        cand_frag_poses = cand_qubo.get("fragment_poses_coords")
+        cand_atom_groups = cand_qubo.get("atom_groups")
         onehot_const = float(cand_qubo["bundle"].onehot_constant)
 
     if Q_mod is not None:
@@ -2491,7 +2496,9 @@ with tab_solvers:
             decoded_poses,
             variable_coords=coords_tensor,
             poses_per_subpocket=poses_per_site,
-            candidate_smiles=cand_smi
+            candidate_smiles=cand_smi,
+            fragment_poses_coords=cand_frag_poses,
+            atom_groups=cand_atom_groups
         )
         relax_res = minimize_ligand_in_pocket(stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_max_steps)
         rmsd_dict = compute_crystal_rmsd_detailed(relax_res["minimized_mol"], ref_pdb=target_ref_pdb)

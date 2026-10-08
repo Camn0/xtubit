@@ -54,79 +54,69 @@ def decode_bitstring_to_subpockets(
 
 def stitch_fragments_to_molecule(
     decoded_poses: Dict[int, int],
-    variable_coords: Optional[torch.Tensor] = None,
+    variable_coords: Optional[Any] = None,
     poses_per_subpocket: int = 15,
     candidate_smiles: Optional[str] = None,
+    fragment_poses_coords: Optional[List[np.ndarray]] = None,
+    atom_groups: Optional[List[List[int]]] = None,
 ) -> Chem.Mol:
     """Stitch sub-pocket fragments into a continuous, chemically valid 3D molecule.
     
-    If candidate_smiles is supplied, assembles and positions the candidate's actual
-    molecular structure. Defaults to canonical TAM16 reference if unspecified.
+    Causal fragment placement:
+    Directly sets each fragment's 3D heavy-atom coordinates to the solver-selected rigid pose,
+    maintaining exact topological causality between QUBO spins and 3D molecular conformation.
     """
     target_smi = candidate_smiles if candidate_smiles is not None else TAM16_SMILES
     mol = Chem.MolFromSmiles(target_smi)
     if mol is None:
         raise ValueError(f"Failed to construct molecular topology from SMILES: {target_smi}")
-
-    # Sanitize and check valency
+    mol = Chem.RemoveHs(mol)
     Chem.SanitizeMol(mol)
 
-    # Embed 3D conformer with stereochemistry
-    mol_h = Chem.AddHs(mol)
-    res = AllChem.EmbedMolecule(mol_h, randomSeed=42)
-    if res != 0:
-        AllChem.EmbedMolecule(mol_h, useRandomCoords=True, randomSeed=42)
+    if mol.GetNumConformers() == 0:
+        res = AllChem.EmbedMolecule(mol, randomSeed=42)
+        if res != 0:
+            AllChem.EmbedMolecule(mol, useRandomCoords=True, randomSeed=42)
 
-    # If variable coordinates from QUBO placement are provided, position fragments
-    if variable_coords is not None and isinstance(variable_coords, torch.Tensor):
-        coords_np = variable_coords.detach().cpu().numpy()
-        conf = mol_h.GetConformer()
-        n_atoms = mol_h.GetNumAtoms()
-        n_heavy = mol.GetNumHeavyAtoms()
+    conf = mol.GetConformer()
+    n_heavy = mol.GetNumHeavyAtoms()
 
-        # 1. Translate molecule centroid to the QUBO-selected Anchor sub-pocket position
-        anchor_pose = decoded_poses.get(0, 0)
-        anchor_var_idx = 0 * poses_per_subpocket + anchor_pose
-        anchor_coord = coords_np[anchor_var_idx] if anchor_var_idx < len(coords_np) else PKS13_SUBPOCKETS["Anchor"]["center"]
-        conf_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(min(n_atoms, n_heavy))], axis=0)
-        shift = anchor_coord - conf_centroid
-        for i in range(n_atoms):
-            pos = conf.GetAtomPosition(i)
-            conf.SetAtomPosition(i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2]))
+    # Determine fragment decomposition if not supplied
+    if atom_groups is None:
+        from .b6_pairs import decompose_candidate_to_fragments
+        atom_groups, _ = decompose_candidate_to_fragments(mol, n_subpockets=max(4, len(decoded_poses)))
 
-
-        # 2. Partition atoms across sub-pocket functional regions for sub-pocket deformation
-        if target_smi == TAM16_SMILES:
-            subpocket_atom_groups = {
-                0: [4, 5, 11, 12, 13, 14, 15, 16, 17, 19, 26, 27],  # Benzofuran core & fused heterocycle
-                1: [0, 1, 2, 3],                                      # Methylcarboxamide linker CNC(=O)-
-                2: [6, 7, 8, 9],                                      # Hydroxyphenyl substituent
-                3: [21, 22, 23, 24, 25],                              # Piperidine ring (P1 cap)
-                4: [10, 18],                                          # Phenolic hydroxyl handles
-                5: [20],                                              # Methylene linker
-            }
-
-        else:
-            heavy_indices = [i for i in range(min(n_atoms, n_heavy))]
-            chunk_size = max(1, len(heavy_indices) // len(decoded_poses)) if decoded_poses else 1
-            subpocket_atom_groups = {
-                p_id: heavy_indices[p_id * chunk_size : (p_id + 1) * chunk_size]
-                for p_id in decoded_poses.keys()
-            }
-
+    # 1. Exact 3D fragment coordinates from solver-selected poses
+    if fragment_poses_coords is not None:
         for p_id, p_pose in decoded_poses.items():
             var_idx = p_id * poses_per_subpocket + p_pose
-            if var_idx < len(coords_np):
-                target_coord = coords_np[var_idx]
-                atom_indices = subpocket_atom_groups.get(p_id, [])
-                valid_atoms = [i for i in atom_indices if i < n_atoms]
+            if var_idx < len(fragment_poses_coords) and p_id < len(atom_groups):
+                pose_pts = fragment_poses_coords[var_idx]
+                grp = atom_groups[p_id]
+                for k, a_idx in enumerate(grp):
+                    if a_idx < n_heavy and k < len(pose_pts):
+                        pt = pose_pts[k]
+                        conf.SetAtomPosition(a_idx, (float(pt[0]), float(pt[1]), float(pt[2])))
+
+    # 2. Centroid-based direct translation if only variable_coords centroids tensor is provided
+    elif variable_coords is not None:
+        coords_np = variable_coords.detach().cpu().numpy() if isinstance(variable_coords, torch.Tensor) else np.array(variable_coords)
+        for p_id, p_pose in decoded_poses.items():
+            var_idx = p_id * poses_per_subpocket + p_pose
+            if var_idx < len(coords_np) and p_id < len(atom_groups):
+                target_centroid = coords_np[var_idx]
+                grp = atom_groups[p_id]
+                valid_atoms = [i for i in grp if i < n_heavy]
                 if valid_atoms:
-                    group_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in valid_atoms], axis=0)
-                    delta = (target_coord - group_centroid) * 0.15  # Elastic displacement
+                    curr_pts = np.array([list(conf.GetAtomPosition(i)) for i in valid_atoms])
+                    curr_c = np.mean(curr_pts, axis=0)
+                    shift = target_centroid - curr_c
                     for i in valid_atoms:
                         pos = conf.GetAtomPosition(i)
-                        conf.SetAtomPosition(i, (pos.x + delta[0], pos.y + delta[1], pos.z + delta[2]))
+                        conf.SetAtomPosition(i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2]))
 
+    # Add hydrogens back to the placed heavy atom scaffold
+    mol_h = Chem.AddHs(mol, addCoords=True)
     return mol_h
 
 
