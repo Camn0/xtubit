@@ -187,10 +187,13 @@ def minimize_ligand_in_pocket(
         "minimized_mol": mol_work,
         "initial_energy_kcal_mol": round(initial_energy, 2),
         "minimized_energy_kcal_mol": round(minimized_energy, 2),
+        "ligand_strain_energy_kcal_mol": round(minimized_energy, 2),
         "delta_energy_kcal_mol": round(delta_e, 2),
         "converged": bool(status == 0),
         "steps_executed": int(max_steps),
         "force_field": "MMFF94" if use_mmff else "UFF",
+        "energy_type": "Ligand Intramolecular Strain (MMFF94)",
+        "receptor_parameterized": False,
     }
 
 
@@ -198,12 +201,22 @@ def compute_crystal_rmsd(
     pred_mol: Chem.Mol,
     ref_mol: Optional[Chem.Mol] = None,
     ref_pdb: Optional[str] = None,
+    align_conformer: bool = True,
+    receptor_offset: Optional[np.ndarray] = None,
 ) -> float:
     """Compute heavy-atom root mean square deviation (RMSD) vs authentic crystallographic ground truth.
 
     Supports:
     - PDB 5V3Y (ligand 5V8 / TAM16, 28 heavy atoms)
     - PDB 8TQV (ligand JS9 / X20403, 40 heavy atoms)
+
+    Parameters:
+    - pred_mol: Predicted ligand molecule with 3D coordinates.
+    - ref_mol: Reference crystal ligand (optional; loaded automatically from PDB/SDF if omitted).
+    - ref_pdb: Target receptor reference code ('5V3Y' or '8TQV').
+    - align_conformer: If True, computes internal dihedral conformer RMSD via optimal 3D rigid-body alignment
+      (Kabsch algorithm / GetBestRMS). If False, evaluates the in-pocket Cartesian RMSD without aligning.
+    - receptor_offset: Optional translation vector applied to transform pred_mol into the reference receptor frame.
     """
     from pathlib import Path
     from rdkit.Chem import rdFMCS
@@ -235,6 +248,22 @@ def compute_crystal_rmsd(
 
     ref_clean = Chem.RemoveHs(Chem.Mol(ref_mol))
 
+    if not align_conformer:
+        # Direct in-pocket Cartesian heavy-atom RMSD without ligand superposition
+        c1 = pred_clean.GetConformer().GetPositions().copy()
+        if receptor_offset is not None:
+            c1 = c1 + np.asarray(receptor_offset)
+        c2 = ref_clean.GetConformer().GetPositions()
+
+        match = pred_clean.GetSubstructMatch(ref_clean)
+        if match and len(match) == len(c2):
+            c1_matched = c1[list(match)]
+            cart_rmsd = float(np.sqrt(np.mean(np.sum((c1_matched - c2) ** 2, axis=1))))
+            return round(cart_rmsd, 3)
+
+        min_len = min(len(c1), len(c2))
+        cart_rmsd = float(np.sqrt(np.mean(np.sum((c1[:min_len] - c2[:min_len]) ** 2, axis=1))))
+        return round(cart_rmsd, 3)
 
     try:
         # Direct isomorphism alignment if atom topology matches
@@ -264,6 +293,21 @@ def compute_crystal_rmsd(
     min_len = min(len(c1), len(c2))
     rmsd = float(np.sqrt(np.mean(np.sum((c1[:min_len] - c2[:min_len]) ** 2, axis=1))))
     return round(rmsd, 3)
+
+
+def compute_crystal_rmsd_detailed(
+    pred_mol: Chem.Mol,
+    ref_mol: Optional[Chem.Mol] = None,
+    ref_pdb: Optional[str] = None,
+    receptor_offset: Optional[np.ndarray] = None,
+) -> Dict[str, float]:
+    """Compute both conformer-aligned RMSD and pocket Cartesian RMSD against crystallographic ground truth."""
+    rmsd_aligned = compute_crystal_rmsd(pred_mol, ref_mol=ref_mol, ref_pdb=ref_pdb, align_conformer=True)
+    rmsd_pocket = compute_crystal_rmsd(pred_mol, ref_mol=ref_mol, ref_pdb=ref_pdb, align_conformer=False, receptor_offset=receptor_offset)
+    return {
+        "conformer_aligned_rmsd_A": rmsd_aligned,
+        "in_pocket_cartesian_rmsd_A": rmsd_pocket,
+    }
 
 
 

@@ -88,3 +88,33 @@ def test_cross_docking_benchmark_execution(tmp_path):
     assert "Cognate (X20403 in 8TQV)" in exp_names
     assert "Cross-Docking (X20403 in 5V3Y)" in exp_names
     assert "Cross-Docking (TAM16 in 8TQV)" in exp_names
+
+    for e in cross_res["experiments"]:
+        assert "receptor_contact_dG" in e
+        assert "receptor_clashes" in e
+        assert "ligand_strain_energy_kcal_mol" in e
+        assert "conformer_aligned_rmsd_A" in e
+        assert "in_pocket_cartesian_rmsd_A" in e
+
+
+def test_3d_rigid_fragment_grid_placements():
+    """Verify 3D rigid fragment docking explores SO(3) rotations and translational cavity space."""
+    res = generate_candidate_pocket_placements(TAM16_SMILES, receptor="5V3Y", poses_per_subpocket=3, n_subpockets=4)
+    assert len(res["coords"]) == 12
+    assert len(res["variable_meta"]) == 12
+
+    # Check that poses within the same sub-pocket are spatially diverse
+    c0 = np.array(res["variable_meta"][0]["coord"])
+    c1 = np.array(res["variable_meta"][1]["coord"])
+    assert np.linalg.norm(c0 - c1) > 0.5, "Poses within subpocket must be spatially diverse"
+
+
+def test_streamlit_bayesian_checkpoint_dynamic_loading():
+    """Verify evaluate_single_smiles in Streamlit dynamically loads 7-D Bayesian checkpoint without fallback."""
+    from app.streamlit_app import evaluate_single_smiles
+    res = evaluate_single_smiles(TAM16_SMILES, mol_id="TAM16_TEST")
+    assert res is not None
+    assert "surrogate_source" in res
+    assert "Trained Bayesian Model" in res["surrogate_source"], f"Expected Trained Bayesian Model, got: {res['surrogate_source']}"
+    assert 4.0 <= res["mu"] <= 9.0
+    assert res["sigma"] > 0.1

@@ -364,6 +364,22 @@ def partition_molecule_to_subpockets(
     return groups[:n_subpockets]
 
 
+def generate_3d_rotations() -> List[np.ndarray]:
+    """Generate discrete 3D rotation matrices sampling SO(3) orientations."""
+    rots = []
+    for rx in [0.0, np.pi / 2.0]:
+        cx, sx = np.cos(rx), np.sin(rx)
+        Rx = np.array([[1.0, 0.0, 0.0], [0.0, cx, -sx], [0.0, sx, cx]])
+        for ry in [0.0, np.pi / 2.0]:
+            cy, sy = np.cos(ry), np.sin(ry)
+            Ry = np.array([[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]])
+            for rz in [0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0]:
+                cz, sz = np.cos(rz), np.sin(rz)
+                Rz = np.array([[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]])
+                rots.append(Rz @ Ry @ Rx)
+    return rots
+
+
 def generate_candidate_pocket_placements(
     candidate_smiles: str,
     receptor: str = "5V3Y",
@@ -371,10 +387,12 @@ def generate_candidate_pocket_placements(
     n_subpockets: int = 4,
     seed: int = 42,
 ) -> Dict[str, Any]:
-    """Generate candidate- and receptor-dependent 3D placements and interaction terms.
+    """Generate candidate- and receptor-dependent 3D placements and interaction terms via 3D rigid fragment docking.
 
     Computes:
     - Candidate-dependent fragment geometry from candidate SMILES.
+    - 3D rigid-body rotation and translational grid search across receptor cavity space.
+    - Steric clash avoidance against all-atom receptor coordinates.
     - Receptor-dependent interaction dG against real PDB pocket heavy atoms.
     - Real inter-fragment steric clashes (min distance < 2.0 A).
     - Real covalent connectivity rewards for bonded fragment interfaces.
@@ -405,6 +423,14 @@ def generate_candidate_pocket_placements(
         dtype=torch.long
     )
 
+    sample_3d_rotations = generate_3d_rotations()
+    grid_translations = [
+        np.array([dx, dy, dz])
+        for dx in [-1.2, 0.0, 1.2]
+        for dy in [-1.2, 0.0, 1.2]
+        for dz in [-1.2, 0.0, 1.2]
+    ]
+
     coords = []
     dG_list = []
     variable_meta = []
@@ -418,24 +444,41 @@ def generate_candidate_pocket_placements(
         frag_center = np.mean(frag_pts, axis=0)
         frag_centered = frag_pts - frag_center
 
-        for pose_idx in range(poses_per_subpocket):
+        # Physical 3D rigid fragment grid placement search across SO(3) rotations and translations
+        candidate_evals = []
+        for R in sample_3d_rotations:
+            f_rot = frag_centered @ R.T
+            for dt in grid_translations:
+                pose_c = f_rot + p_center + dt
+                # Check min distance to protein heavy atoms
+                d_min = float(np.min(np.linalg.norm(pose_c[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
+                clash_pen = 15.0 * (1.8 - d_min) if d_min < 1.8 else 0.0
+                e_contact = compute_protein_fragment_contact_potential(pose_c, pocket_atoms)
+                e_total = e_contact + clash_pen
+                candidate_evals.append((e_total, pose_c, e_contact, d_min))
+
+        # Rank by total energy (favoring strong contact and zero clash)
+        candidate_evals.sort(key=lambda x: x[0])
+
+        # Greedily select poses_per_subpocket spatially diverse poses (centroid distance >= 0.8 A)
+        selected_poses = []
+        for e_tot, pose_c, e_cont, d_min in candidate_evals:
+            c_new = np.mean(pose_c, axis=0)
+            if not any(np.linalg.norm(c_new - np.mean(prev[1], axis=0)) < 0.8 for prev in selected_poses):
+                selected_poses.append((e_tot, pose_c, e_cont, d_min))
+            if len(selected_poses) >= poses_per_subpocket:
+                break
+
+        while len(selected_poses) < poses_per_subpocket:
+            selected_poses.append(candidate_evals[len(selected_poses) % len(candidate_evals)])
+
+        for pose_idx, (e_tot, pose_coords, e_contact, d_min) in enumerate(selected_poses):
             var_idx = p_idx * poses_per_subpocket + pose_idx
-            theta = pose_idx * (2.0 * np.pi / poses_per_subpocket)
-            cos_t, sin_t = np.cos(theta), np.sin(theta)
-            rot_mat = np.array([
-                [cos_t, -sin_t, 0.0],
-                [sin_t,  cos_t, 0.0],
-                [0.0,    0.0,   1.0]
-            ])
-            jitter = rng.normal(0.0, 0.2, size=3)
-            pose_coords = (frag_centered @ rot_mat.T) + p_center + jitter
             pose_centroid = np.mean(pose_coords, axis=0)
 
             coords.append(pose_centroid)
             placement_frags_coords.append(pose_coords)
-
-            e_bind = compute_protein_fragment_contact_potential(pose_coords, pocket_atoms)
-            dG_list.append(e_bind)
+            dG_list.append(e_tot)
 
             variable_meta.append({
                 "var_index": var_idx,
@@ -443,7 +486,9 @@ def generate_candidate_pocket_placements(
                 "subpocket_name": p_name,
                 "pose_id": pose_idx,
                 "coord": pose_centroid.tolist(),
-                "dG": float(e_bind),
+                "dG": float(e_tot),
+                "e_contact": float(e_contact),
+                "min_protein_dist": float(d_min),
                 "n_fragment_atoms": len(group),
             })
 

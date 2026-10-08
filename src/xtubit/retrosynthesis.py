@@ -133,7 +133,19 @@ def estimate_synthetic_complexity(mol: Chem.Mol) -> float:
 
 
 # Backwards compatibility alias for earlier module naming and persistent deployments
-calculate_scscore = estimate_synthetic_complexity
+def calculate_scscore(mol: Chem.Mol) -> float:
+    """[DEPRECATED] Heuristic wrapper around estimate_synthetic_complexity().
+    
+    Warning: This is a calibrated topological proxy, NOT the MIT Coley et al. (2018) deep neural network SCScore.
+    """
+    import warnings
+    warnings.warn(
+        "calculate_scscore() is a deprecated heuristic alias. Please use estimate_synthetic_complexity() directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return estimate_synthetic_complexity(mol)
+
 
 __all__ = [
     "estimate_synthetic_complexity",

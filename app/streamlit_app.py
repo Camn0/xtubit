@@ -413,19 +413,34 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
         # Use trained PyTorch variational Bayesian model if checkpoint is present
         pred_mu = None
         pred_sigma = None
+        surrogate_source = "Heuristic Descriptor Fallback"
         ckpt_path = Path("data/processed/bayes_head.pt")
         if ckpt_path.exists():
             try:
                 ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
                 from xtubit.b4_bayesian_gnn import BayesianLinear
+                feat_keys = ckpt.get("feats", ["qed", "sa", "mw", "logp", "hbd", "hba", "rot_bonds"])
+                in_dim = len(feat_keys)
                 b_head = torch.nn.Sequential(
-                    BayesianLinear(6, 32, prior_sigma=0.1),
+                    BayesianLinear(in_dim, 32, prior_sigma=0.1),
                     torch.nn.SiLU(),
                     BayesianLinear(32, 1, prior_sigma=0.1)
                 )
                 b_head.load_state_dict(ckpt["model_state"])
                 b_head.eval()
-                feat_vec = torch.tensor([[qed_val, sa_val, scscore_v, mw, logp, float(rot_bonds)]], dtype=torch.float32)
+
+                feat_dict = {
+                    "qed": qed_val,
+                    "sa": sa_val,
+                    "mw": float(mw),
+                    "logp": float(logp),
+                    "hbd": float(hbd),
+                    "hba": float(hba),
+                    "rot_bonds": float(rot_bonds),
+                    "scscore": float(scscore_v),
+                }
+                feat_vals = [feat_dict.get(k, 0.0) for k in feat_keys]
+                feat_vec = torch.tensor([feat_vals], dtype=torch.float32)
                 with torch.no_grad():
                     mc_samples = [b_head(feat_vec).squeeze() for _ in range(30)]
                     stacked = torch.stack(mc_samples)
@@ -433,8 +448,11 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
                     raw_sig = float(stacked.std())
                     tau_val = float(ckpt.get("tau", 1.0))
                     pred_sigma = float(max(0.2, raw_sig * tau_val))
-            except Exception:
-                pass
+                    surrogate_source = f"Trained Bayesian Model ({in_dim}-D MC-Dropout, tau={tau_val:.2f})"
+            except Exception as e:
+                import logging
+                logging.getLogger("xtubit").warning("Failed to load Bayesian checkpoint: %s", e)
+                surrogate_source = f"Heuristic Fallback (Checkpoint Error: {e})"
 
         if pred_mu is None:
             pred_mu = float(np.clip(6.4 + 1.2 * qed_val - 0.22 * sa_val + 0.12 * min(logp, 5.0), 4.5, 8.8))
@@ -464,6 +482,7 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
             "ic50_uM": float(10**(6 - pred_mu)),
             "mu": pred_mu,
             "sigma": pred_sigma,
+            "surrogate_source": surrogate_source,
             "qpmhi_score": qpmhi_score,
             "sdf": sdf_block,
             "lipinski_violations": lipinski_violations,
@@ -2095,7 +2114,7 @@ with tab_conformer:
             st.markdown("**Evaluated Properties:**")
             m_a1, m_a2, m_a3 = st.columns(3)
             with m_a1:
-                st.metric("Predicted Affinity", f"{ca.get('mu', 7.0):.2f} pIC50", delta=f"{ca.get('mu', 7.0) - 6.72:+.2f} vs TAM16 Lead (pIC50 6.72)")
+                st.metric("Predicted Affinity", f"{ca.get('mu', 7.0):.2f} ± {ca.get('sigma', 0.4):.2f} pIC50", delta=f"{ca.get('mu', 7.0) - 6.72:+.2f} vs TAM16 Lead (pIC50 6.72)")
                 st.metric("QED Drug-Likeness", f"{ca.get('qed', 0.5):.3f}")
             with m_a2:
                 st.metric("PMHI (Pareto Score)", f"{ca.get('qpmhi_score', 0.2):.4f}")
@@ -2103,6 +2122,8 @@ with tab_conformer:
             with m_a3:
                 st.metric("Molecular Weight", f"{ca.get('mw', 300.0):.1f} Da")
                 st.metric("Calculated LogP", f"{ca.get('logp', 3.0):.2f}")
+
+            st.caption(f"🧠 Surrogate Engine: {ca.get('surrogate_source', 'Variational Bayesian Surrogate')}")
 
             c_btn1, c_btn2 = st.columns(2)
             with c_btn1:
@@ -2524,10 +2545,10 @@ with tab_solvers:
 
         with res_col2:
             st.metric(
-                "MMFF94 Pocket Energy",
+                "Ligand Strain (MMFF94)",
                 f"{relax_res['minimized_energy_kcal_mol']:.2f} kcal/mol",
                 delta=f"{relax_res['delta_energy_kcal_mol']:+.2f} kcal/mol relaxation",
-                help="Continuous molecular mechanics force field relaxation inside rigid Pks13 pocket boundaries."
+                help="Intramolecular conformational strain energy of the ligand alone after pose relaxation under pocket anchor restraints. Note: The receptor is held rigid and not parameterized in this force-field step; binding affinity is captured by the contact potential & QUBO."
             )
         with res_col3:
             st.metric(

@@ -6,19 +6,19 @@
   "lead_compound": "TAM16",
   "candidate_smiles": "CNC(=O)c1c(-c2ccc(O)cc2)oc2ccc(O)c(CN3CCCCC3)c12",
   "total_qubo_variables": 12,
-  "best_solver": "Exact (Brute Force)",
-  "heavy_atom_rmsd_A": 0.428,
+  "best_solver": "Two-Stage tSB",
+  "heavy_atom_rmsd_A": 0.416,
   "rmsd_under_2A_success": true,
   "repaired_solution_bits": [
     0,
     1,
     0,
     0,
-    0,
     1,
     0,
     0,
     1,
+    0,
     1,
     0,
     0
@@ -26,9 +26,9 @@
   "solver_evaluations": [
     {
       "solver": "Exact (Brute Force)",
-      "raw_energy": -35.236,
-      "constraint_violations": 1,
-      "repaired_rmsd_A": 0.428,
+      "raw_energy": -38.0,
+      "constraint_violations": 0,
+      "repaired_rmsd_A": 0.5,
       "rmsd_under_2A_success": true,
       "repaired_bits": [
         0,
@@ -40,16 +40,16 @@
         0,
         0,
         1,
-        1,
         0,
+        1,
         0
       ]
     },
     {
       "solver": "TApSA",
-      "raw_energy": -35.236,
-      "constraint_violations": 1,
-      "repaired_rmsd_A": 0.428,
+      "raw_energy": -38.0,
+      "constraint_violations": 0,
+      "repaired_rmsd_A": 0.5,
       "rmsd_under_2A_success": true,
       "repaired_bits": [
         0,
@@ -61,16 +61,16 @@
         0,
         0,
         1,
-        1,
         0,
+        1,
         0
       ]
     },
     {
       "solver": "SpSA",
-      "raw_energy": -35.236,
-      "constraint_violations": 1,
-      "repaired_rmsd_A": 0.428,
+      "raw_energy": -38.0,
+      "constraint_violations": 0,
+      "repaired_rmsd_A": 0.5,
       "rmsd_under_2A_success": true,
       "repaired_bits": [
         0,
@@ -82,39 +82,39 @@
         0,
         0,
         1,
-        1,
         0,
+        1,
         0
       ]
     },
     {
       "solver": "Two-Stage tSB",
-      "raw_energy": -32.974,
+      "raw_energy": -33.0,
       "constraint_violations": 0,
-      "repaired_rmsd_A": 0.432,
+      "repaired_rmsd_A": 0.416,
       "rmsd_under_2A_success": true,
       "repaired_bits": [
         0,
         1,
         0,
-        1,
-        0,
-        0,
-        0,
         0,
         1,
         0,
         0,
-        1
+        1,
+        0,
+        1,
+        0,
+        0
       ]
     }
   ],
   "solver_benchmarks": [
     {
       "solver": "Exact (Brute Force)",
-      "energy": -35.235709248837665,
-      "qubo_e": -85.23570924883767,
-      "wall_s": 0.27033680000022287,
+      "energy": -38.0,
+      "qubo_e": -88.0,
+      "wall_s": 0.13045329999999922,
       "best_bits": [
         0.0,
         1.0,
@@ -127,15 +127,15 @@
         1.0,
         0.0,
         1.0,
-        1.0
+        0.0
       ],
       "p_success": 1.0,
-      "tts_99": 0.27033680000022287
+      "tts_99": 0.13045329999999922
     },
     {
       "solver": "TApSA",
-      "energy": -35.23571014404297,
-      "wall_s": 0.06996259999959875,
+      "energy": -38.0,
+      "wall_s": 0.03798440000002756,
       "best_bits": [
         0.0,
         1.0,
@@ -148,15 +148,15 @@
         1.0,
         0.0,
         1.0,
-        1.0
+        0.0
       ],
-      "p_success": 0.2,
-      "tts_99": 1.4438673121173262
+      "p_success": 1.0,
+      "tts_99": 0.03798440000002756
     },
     {
       "solver": "SpSA",
-      "energy": -35.23571014404297,
-      "wall_s": 0.07740484999976616,
+      "energy": -38.0,
+      "wall_s": 0.052187750000030064,
       "best_bits": [
         0.0,
         1.0,
@@ -169,31 +169,31 @@
         1.0,
         0.0,
         1.0,
-        1.0
+        0.0
       ],
-      "p_success": 0.3,
-      "tts_99": 0.9994043975543022
+      "p_success": 0.5,
+      "tts_99": 0.3467279058681156
     },
     {
       "solver": "Two-Stage tSB",
-      "energy": -32.973716735839844,
-      "wall_s": 0.15659504999985074,
+      "energy": -33.0,
+      "wall_s": 0.09746970000014699,
       "best_bits": [
         0.0,
         1.0,
         0.0,
-        1.0,
-        0.0,
-        0.0,
-        0.0,
         0.0,
         1.0,
         0.0,
         0.0,
-        1.0
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
       ],
-      "p_success": 0.6,
-      "tts_99": 0.7870284293475431
+      "p_success": 1.0,
+      "tts_99": 0.09746970000014699
     }
   ]
 }

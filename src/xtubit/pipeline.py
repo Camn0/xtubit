@@ -449,17 +449,18 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
     4. Cross-docking 2: TAM16 docked into foreign cryptic-pocket PDB 8TQV.
     """
     logger.info("Executing Cross-Docking Benchmark across 5V3Y (Closed) and 8TQV (Open)...")
-    from .b6_pairs import build_candidate_qubo
+    from .b6_pairs import build_candidate_qubo, load_receptor_pocket_atoms, compute_protein_fragment_contact_potential
     from .solvers.exact import brute_force_qubo
     from .post_anneal import (
         TAM16_SMILES,
         decode_bitstring_to_subpockets,
         stitch_fragments_to_molecule,
         minimize_ligand_in_pocket,
-        compute_crystal_rmsd
+        compute_crystal_rmsd_detailed,
     )
 
     x20403_smi = "CN(CC1(CC1)COC)C(=O)c2ccc(cc2)CCn3cc(nn3)c4ccc(nc4)c5cc(ccc5OC)OC"
+    ref_offset_8tqv = np.array([-8.87, -41.34, 5.63])
 
     experiments = [
         {"name": "Cognate (TAM16 in 5V3Y)", "cand_id": "TAM16", "smi": TAM16_SMILES, "receptor": "5V3Y", "ref_pdb": "5V3Y"},
@@ -469,6 +470,8 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
     ]
 
     results = []
+    cognate_energies = {}
+
     for exp in experiments:
         qubo_data = build_candidate_qubo(
             candidate_smiles=exp["smi"],
@@ -488,24 +491,59 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
             candidate_smiles=exp["smi"]
         )
         relaxed = minimize_ligand_in_pocket(stitched, max_steps=40)
-        rmsd = compute_crystal_rmsd(relaxed["minimized_mol"], ref_pdb=exp["ref_pdb"])
+
+        # Coordinate transformation offset for cross-receptor frames
+        if exp["receptor"] == "8TQV" and exp["ref_pdb"] == "5V3Y":
+            trans_offset = -ref_offset_8tqv
+        elif exp["receptor"] == "5V3Y" and exp["ref_pdb"] == "8TQV":
+            trans_offset = ref_offset_8tqv
+        else:
+            trans_offset = None
+
+        rmsd_dict = compute_crystal_rmsd_detailed(
+            relaxed["minimized_mol"],
+            ref_pdb=exp["ref_pdb"],
+            receptor_offset=trans_offset
+        )
+
+        # Evaluate physical protein pocket contacts and clashes
+        pocket_atoms = load_receptor_pocket_atoms(exp["receptor"])
+        c_clean = Chem.RemoveHs(relaxed["minimized_mol"]).GetConformer().GetPositions()
+        d_prot = np.min(np.linalg.norm(c_clean[:, None, :] - pocket_atoms[None, :, :], axis=-1), axis=-1)
+        clashes = int(np.sum(d_prot < 2.0))
+        contact_dG = compute_protein_fragment_contact_potential(c_clean, pocket_atoms)
+
+        is_cognate = bool(exp["receptor"] == exp["ref_pdb"])
+        if is_cognate:
+            cognate_energies[exp["cand_id"]] = float(e_exact)
+
+        delta_vs_cognate = round(float(e_exact) - cognate_energies.get(exp["cand_id"], float(e_exact)), 3)
 
         results.append({
             "experiment": exp["name"],
             "compound": exp["cand_id"],
             "receptor_pdb": exp["receptor"],
             "reference_crystal_pdb": exp["ref_pdb"],
+            "is_cognate": is_cognate,
             "qubo_energy": round(float(e_exact), 3),
+            "score_diff_vs_cognate": delta_vs_cognate,
+            "receptor_contact_dG": round(float(contact_dG), 2),
+            "receptor_clashes": clashes,
+            "ligand_strain_energy_kcal_mol": relaxed["ligand_strain_energy_kcal_mol"],
             "minimized_energy_kcal_mol": relaxed["minimized_energy_kcal_mol"],
-            "heavy_atom_rmsd_A": rmsd,
-            "success_under_2A": bool(rmsd < 2.0),
+            "energy_type": "Ligand Intramolecular Strain (MMFF94)",
+            "conformer_aligned_rmsd_A": rmsd_dict["conformer_aligned_rmsd_A"],
+            "in_pocket_cartesian_rmsd_A": rmsd_dict["in_pocket_cartesian_rmsd_A"],
+            "heavy_atom_rmsd_A": rmsd_dict["conformer_aligned_rmsd_A"],
+            "success_under_2A": bool(rmsd_dict["conformer_aligned_rmsd_A"] < 2.0),
         })
-        logger.info("%s: Energy=%.2f, RMSD=%.2f A (Success=%s)",
-                    exp["name"], float(e_exact), rmsd, rmsd < 2.0)
+        logger.info("%s: QUBO E=%.2f, Contact dG=%.2f, Clashes=%d, Aligned RMSD=%.2f A, Pocket RMSD=%.2f A",
+                    exp["name"], float(e_exact), contact_dG, clashes,
+                    rmsd_dict["conformer_aligned_rmsd_A"], rmsd_dict["in_pocket_cartesian_rmsd_A"])
 
     cross_data = {
         "status": "COMPLETED",
-        "description": "Retrospective Cross-Docking Validation Benchmark",
+        "description": "Retrospective Cross-Docking Validation Benchmark with Protein Clashes and Dual RMSD",
         "experiments": results,
     }
     metrics_dir = out_dir / "metrics"
