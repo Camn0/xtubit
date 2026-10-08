@@ -53,23 +53,18 @@ def decode_bitstring_to_subpockets(
 def stitch_fragments_to_molecule(
     decoded_poses: Dict[int, int],
     variable_coords: Optional[torch.Tensor] = None,
-    poses_per_subpocket: int = 15
+    poses_per_subpocket: int = 15,
+    candidate_smiles: Optional[str] = None,
 ) -> Chem.Mol:
     """Stitch sub-pocket fragments into a continuous, chemically valid 3D molecule.
     
-    For the Pks13 TAM16 pharmacophore, assembles:
-    - Subpocket 0: 2-Methylbenzofuran core
-    - Subpocket 1: Carboxamide linker
-    - Subpocket 2: Methylene bridge
-    - Subpocket 3: Thiophene ring (P1 cap)
-    - Subpocket 4: Carbonyl / active-site handle
-    - Subpocket 5: Phenyl substituent
-    
-    Verifies valency, charges, and aromaticity in RDKit.
+    If candidate_smiles is supplied, assembles and positions the candidate's actual
+    molecular structure. Defaults to canonical TAM16 reference if unspecified.
     """
-    mol = Chem.MolFromSmiles(TAM16_SMILES)
+    target_smi = candidate_smiles if candidate_smiles is not None else TAM16_SMILES
+    mol = Chem.MolFromSmiles(target_smi)
     if mol is None:
-        raise ValueError("Failed to construct base TAM16 topology")
+        raise ValueError(f"Failed to construct molecular topology from SMILES: {target_smi}")
 
     # Sanitize and check valency
     Chem.SanitizeMol(mol)
@@ -85,26 +80,34 @@ def stitch_fragments_to_molecule(
         coords_np = variable_coords.detach().cpu().numpy()
         conf = mol_h.GetConformer()
         n_atoms = mol_h.GetNumAtoms()
+        n_heavy = mol.GetNumHeavyAtoms()
 
         # 1. Translate molecule centroid to the QUBO-selected Anchor sub-pocket position
         anchor_idx = decoded_poses.get(0, 0)
         anchor_coord = coords_np[anchor_idx] if anchor_idx < len(coords_np) else PKS13_SUBPOCKETS["Anchor"]["center"]
-        conf_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(min(n_atoms, 22))], axis=0)
+        conf_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(min(n_atoms, n_heavy))], axis=0)
         shift = anchor_coord - conf_centroid
         for i in range(n_atoms):
             pos = conf.GetAtomPosition(i)
             conf.SetAtomPosition(i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2]))
 
-        # 2. Partition atoms across 6 sub-pocket functional regions for sub-pocket deformation
-        # 0: Benzofuran core, 1: Carbonyl linker, 2: Tunnel alkyl, 3: Cap, 4: Handle, 5: Solvent front
-        subpocket_atom_groups = {
-            0: [10, 11, 12, 13, 14, 15, 16, 17],  # Benzofuran core
-            1: [1, 2, 3],                          # Carbonyl / ester bridge
-            2: [7, 8],                             # Tunnel alkyl / ethyl
-            3: [5, 6],                             # P1 cap / methyl
-            4: [0, 4],                             # Active-site ester handle
-            5: [9, 18, 19, 20, 21],                # Solvent front
-        }
+        # 2. Partition atoms across sub-pocket functional regions for sub-pocket deformation
+        if target_smi == TAM16_SMILES:
+            subpocket_atom_groups = {
+                0: [10, 11, 12, 13, 14, 15, 16, 17],  # Benzofuran core
+                1: [1, 2, 3],                          # Carbonyl / ester bridge
+                2: [7, 8],                             # Tunnel alkyl / ethyl
+                3: [5, 6],                             # P1 cap / methyl
+                4: [0, 4],                             # Active-site ester handle
+                5: [9, 18, 19, 20, 21],                # Solvent front
+            }
+        else:
+            heavy_indices = [i for i in range(min(n_atoms, n_heavy))]
+            chunk_size = max(1, len(heavy_indices) // len(decoded_poses)) if decoded_poses else 1
+            subpocket_atom_groups = {
+                p_id: heavy_indices[p_id * chunk_size : (p_id + 1) * chunk_size]
+                for p_id in decoded_poses.keys()
+            }
 
         for p_id, p_pose in decoded_poses.items():
             var_idx = p_id * poses_per_subpocket + p_pose

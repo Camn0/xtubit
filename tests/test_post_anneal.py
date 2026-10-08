@@ -91,3 +91,19 @@ def test_crystal_rmsd_and_multi_model_sdf_export():
     assert "TAM16_Unrelaxed" in sdf_str
     assert "TAM16_MMFF94_Relaxed" in sdf_str
     assert "$$$$" in sdf_str
+
+
+def test_stitch_candidate_independence():
+    """Anti-cheating test: Verify reconstructed molecular graphs are strictly candidate-dependent."""
+    decoded = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    cand_a_smi = TAM16_SMILES
+    cand_b_smi = "Cc1ccc(C(=O)NCc2cccs2)c2ccccc12"  # distinct ligand structure
+
+    mol_a = stitch_fragments_to_molecule(decoded, candidate_smiles=cand_a_smi)
+    mol_b = stitch_fragments_to_molecule(decoded, candidate_smiles=cand_b_smi)
+
+    smi_a = Chem.MolToSmiles(Chem.RemoveHs(mol_a), canonical=True)
+    smi_b = Chem.MolToSmiles(Chem.RemoveHs(mol_b), canonical=True)
+
+    assert smi_a != smi_b, "Candidate A and B must not produce identical molecular topologies"
+    assert mol_a.GetNumHeavyAtoms() != mol_b.GetNumHeavyAtoms()

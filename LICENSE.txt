@@ -1,5 +1,26 @@
-X-TUBIT BUILD PACK LICENSE
+MIT License
 
-The original files under src/, configs/, tests/, scripts/, app/, docs/ and data/ in this pack are provided for the X-TUBIT project as an assembly scaffold. Third-party software referenced under third_party/SOURCES.md remains under its own license and is not redistributed by this pack.
+Copyright (c) 2026 X-TUBIT Contributors
 
-Before distributing a built system, preserve each third-party license and attribution notice in the retrieved repositories.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Third-Party Notices:
+This repository interfaces with third-party open-source libraries referenced in
+third_party/SOURCES.md and third_party/LICENSE_NOTES.md. Each third-party tool
+remains subject to its respective original upstream license.

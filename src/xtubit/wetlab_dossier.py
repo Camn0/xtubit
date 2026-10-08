@@ -78,12 +78,22 @@ def generate_preclinical_specification_sheet(mol: Chem.Mol, mol_id: str = "LEAD_
 
 
 def map_commercial_building_blocks(smi: str) -> List[Dict[str, Any]]:
-    """Decompose structure into commercial starting material building blocks with catalog IDs."""
-    smi_lower = smi.lower()
+    """Map candidate structure to curated commercial starting material building blocks.
+    
+    Uses RDKit SMARTS substructure matching to identify core scaffolds and functional caps.
+    Note: Building block catalog IDs represent curated CRO benchmark references for wet-lab handoff.
+    """
+    mol = Chem.MolFromSmiles(smi)
     blocks = []
 
+    # SMARTS Patterns for Lead Pks13 Building Blocks
+    patt_benzofuran = Chem.MolFromSmarts("c1oc2ccccc2c1")
+    patt_benzothiophene = Chem.MolFromSmarts("c1sc2ccccc2c1")
+    patt_thiophene = Chem.MolFromSmarts("c1cccs1")
+    patt_morpholine = Chem.MolFromSmarts("C1COCCN1")
+
     # 1. Core Heteroaromatic Scaffolds
-    if "oc2" in smi_lower or "c1oc2" in smi_lower:
+    if mol and mol.HasSubstructMatch(patt_benzofuran):
         blocks.append({
             "fragment_role": "Core Scaffold",
             "chemical_name": "5-Bromo-2-methyl-1-benzofuran-3-carboxylic acid",
@@ -95,7 +105,7 @@ def map_commercial_building_blocks(smi: str) -> List[Dict[str, Any]]:
             "est_cost_per_gram": "$45 - $65",
             "est_lead_time": "3 - 5 business days",
         })
-    elif "c1cccs1" in smi_lower or "sc2" in smi_lower:
+    elif mol and mol.HasSubstructMatch(patt_benzothiophene):
         blocks.append({
             "fragment_role": "Core Scaffold",
             "chemical_name": "5-Bromo-1-benzothiophene-2-carboxylic acid",
@@ -121,7 +131,7 @@ def map_commercial_building_blocks(smi: str) -> List[Dict[str, Any]]:
         })
 
     # 2. P1 Cap / Amine Coupling Partner
-    if "c2cccs2" in smi_lower or "ncc2cccs2" in smi_lower:
+    if mol and mol.HasSubstructMatch(patt_thiophene):
         blocks.append({
             "fragment_role": "P1 Lipophilic Cap",
             "chemical_name": "C-(Thiophen-2-yl)-methylamine",
@@ -133,7 +143,7 @@ def map_commercial_building_blocks(smi: str) -> List[Dict[str, Any]]:
             "est_cost_per_gram": "$20 - $35",
             "est_lead_time": "In Stock (Overnight)",
         })
-    elif "n1ccoc" in smi_lower or "morpholine" in smi_lower:
+    elif mol and mol.HasSubstructMatch(patt_morpholine):
         blocks.append({
             "fragment_role": "Solubilizing Cap",
             "chemical_name": "2-(Morpholin-4-yl)ethan-1-amine",
