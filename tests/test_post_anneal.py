@@ -111,28 +111,31 @@ def test_stitch_candidate_independence():
 
 
 def test_pdb_reference_identity():
-    """Verify authentic PDB 5V3Y crystal ligand matches 5V8 identity (28 heavy atoms, C22H24N2O4)."""
+    """Verify authentic PDB crystal ligands match deposited identities: 5V3Y (5V8) and 8TQV (JS9)."""
     from pathlib import Path
-    import yaml
     from rdkit.Chem import rdMolDescriptors
 
-    sdf_path = Path("data/raw/5v3y_ligand.sdf")
-    assert sdf_path.exists(), "PDB 5V3Y crystal ligand SDF must exist"
+    # 1. TAM16 Reference (5V3Y / 5V8)
+    sdf_5v3y = Path("data/raw/5v3y_ligand.sdf")
+    assert sdf_5v3y.exists(), "PDB 5V3Y crystal ligand SDF must exist"
+    suppl_5v3y = Chem.SDMolSupplier(str(sdf_5v3y))
+    ref_5v8 = suppl_5v3y[0]
+    assert ref_5v8.GetNumHeavyAtoms() == 28
+    assert rdMolDescriptors.CalcMolFormula(ref_5v8) == "C22H24N2O4"
+    assert Chem.MolToInchiKey(ref_5v8) == "PQGCMFVNJWTUFH-UHFFFAOYSA-N"
 
-    suppl = Chem.SDMolSupplier(str(sdf_path))
-    assert len(suppl) > 0 and suppl[0] is not None
-    ref_mol = suppl[0]
-
-    # Verify chemical identity against RCSB entry 5V8
-    assert ref_mol.GetNumHeavyAtoms() == 28, f"Expected 28 heavy atoms, got {ref_mol.GetNumHeavyAtoms()}"
-    formula = rdMolDescriptors.CalcMolFormula(ref_mol)
-    assert formula == "C22H24N2O4", f"Expected C22H24N2O4 formula for 5V8, got {formula}"
-    inchikey = Chem.MolToInchiKey(ref_mol)
-    assert inchikey == "PQGCMFVNJWTUFH-UHFFFAOYSA-N", f"Unexpected InChIKey: {inchikey}"
+    # 2. X20403 Reference (8TQV / JS9)
+    sdf_8tqv = Path("data/raw/8tqv_ligand.sdf")
+    assert sdf_8tqv.exists(), "PDB 8TQV crystal ligand SDF must exist"
+    suppl_8tqv = Chem.SDMolSupplier(str(sdf_8tqv))
+    ref_js9 = suppl_8tqv[0]
+    assert ref_js9.GetNumHeavyAtoms() == 40
+    assert rdMolDescriptors.CalcMolFormula(ref_js9) == "C31H35N5O4"
+    assert Chem.MolToInchiKey(ref_js9) == "MGTHESHOEDYGFD-UHFFFAOYSA-N"
 
 
 def test_reference_compound_registry_matches_pdb():
-    """Verify reference_compounds.yaml matches authentic crystallographic coordinates."""
+    """Verify reference_compounds.yaml matches authentic crystallographic coordinates for TAM16 and X20403."""
     from pathlib import Path
     import yaml
 
@@ -142,6 +145,7 @@ def test_reference_compound_registry_matches_pdb():
     with open(yaml_path, "r", encoding="utf-8") as f:
         registry = yaml.safe_load(f)
 
+    # TAM16
     assert "TAM16" in registry
     tam16 = registry["TAM16"]
     assert tam16["pdb_ligand_id"] == "5V8"
@@ -150,21 +154,31 @@ def test_reference_compound_registry_matches_pdb():
     assert tam16["num_heavy_atoms"] == 28
     assert tam16["formula"] == "C22H24N2O4"
 
+    # X20403
+    assert "X20403" in registry
+    x20403 = registry["X20403"]
+    assert x20403["pdb_ligand_id"] == "JS9"
+    assert x20403["pdb_target"] == "8TQV"
+    assert x20403["inchikey"] == "MGTHESHOEDYGFD-UHFFFAOYSA-N"
+    assert x20403["num_heavy_atoms"] == 40
+    assert x20403["formula"] == "C31H35N5O4"
+
 
 def test_candidate_reaches_physics():
     """Verify candidate SMILES and placement coordinates propagate into reconstructed 3D pose."""
     decoded = {0: 1, 1: 0, 2: 2, 3: 0, 4: 1, 5: 0}
     test_coords = torch.ones((60, 3), dtype=torch.float64) * 15.0
 
-    cand_smi = "O=C(NCc1cccs1)c2c(C)oc(c2)c3c(CC)oc4ccccc34"  # X20403
+    cand_smi = "CN(CC1(CC1)COC)C(=O)c2ccc(cc2)CCn3cc(nn3)c4ccc(nc4)c5cc(ccc5OC)OC"  # Authentic X20403 / JS9
     mol_custom = stitch_fragments_to_molecule(
         decoded,
         variable_coords=test_coords,
         candidate_smiles=cand_smi,
     )
-    assert mol_custom.GetNumHeavyAtoms() == 26
+    assert mol_custom.GetNumHeavyAtoms() == 40
     # Centroid shifted towards test_coords
     conf = mol_custom.GetConformer()
-    centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(26)], axis=0)
+    centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(40)], axis=0)
     assert np.all(np.abs(centroid) > 5.0), "Conformer should be placed near test_coords"
+
 

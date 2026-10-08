@@ -401,8 +401,9 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
         )
         relaxed_res = minimize_ligand_in_pocket(stitched_mol, max_steps=50)
 
-        # Heavy-atom RMSD vs authentic PDB 5V3Y crystal structure
-        actual_rmsd = compute_crystal_rmsd(relaxed_res["minimized_mol"])
+        # Heavy-atom RMSD vs authentic crystal structure
+        target_ref_pdb = "8TQV" if (candidate_mol_id == "X20403") else "5V3Y"
+        actual_rmsd = compute_crystal_rmsd(relaxed_res["minimized_mol"], ref_pdb=target_ref_pdb)
 
         eval_entry = {
             "solver": s_res["solver"],
@@ -419,14 +420,19 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
             best_overall_solver = s_res["solver"]
             best_repaired_bits = repaired_bits.tolist()
 
+    ref_pdb_code = "8TQV" if (candidate_mol_id == "X20403") else "5V3Y"
+    ref_ligand_code = "JS9" if (candidate_mol_id == "X20403") else "5V8"
+    ref_res_A = 2.00 if (candidate_mol_id == "X20403") else 1.98
+
     summary = {
         "status": "COMPLETED",
-        "reference_pdb": "5V3Y",
-        "reference_ligand_id": "5V8",
-        "reference_resolution_A": 1.98,
+        "reference_pdb": ref_pdb_code,
+        "reference_ligand_id": ref_ligand_code,
+        "reference_resolution_A": ref_res_A,
         "lead_compound": candidate_mol_id,
         "candidate_smiles": candidate_smiles,
         "total_qubo_variables": len(fragment_id),
+
         "best_solver": best_overall_solver,
         "heavy_atom_rmsd_A": best_overall_rmsd,
         "rmsd_under_2A_success": bool(best_overall_rmsd < 2.0),

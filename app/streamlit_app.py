@@ -501,21 +501,21 @@ audit_file = Path("data/processed/hitl_decisions.jsonl")
 # Completely prevents StreamlitWidgetAlreadyInstantiatedError and 2-click lag.
 # ==============================================================================
 # Ground-truth empirical wet-lab bioassay data published in primary peer-reviewed literature
-# Sources: Aggarwal et al. Nature 2017 (doi:10.1038/nature22375) and Krieger et al. 2024 (Pks13-TE esterase)
+# Sources: Aggarwal et al. Cell 2017 (doi:10.1016/j.cell.2017.06.025) and Krieger et al. 2024 (Pks13-TE esterase)
 EMPIRICAL_DATA = {
-    "TAM1": {"ic50_uM": 0.26, "pIC50": 6.5850, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM2": {"ic50_uM": 0.12, "pIC50": 6.9208, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM3": {"ic50_uM": 0.24, "pIC50": 6.6198, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V42 (1.99 Å)"},
-    "TAM4": {"ic50_uM": 0.28, "pIC50": 6.5528, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM5": {"ic50_uM": 0.71, "pIC50": 6.1487, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V41 (2.05 Å)"},
-    "TAM6": {"ic50_uM": 0.32, "pIC50": 6.4949, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V40 (1.99 Å)"},
-    "TAM11": {"ic50_uM": 19.6, "pIC50": 4.7077, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM12": {"ic50_uM": 0.29, "pIC50": 6.5376, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM13": {"ic50_uM": 0.17, "pIC50": 6.7696, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM14": {"ic50_uM": 35.8, "pIC50": 4.4461, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM15": {"ic50_uM": 2.00, "pIC50": 5.6990, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
-    "TAM16": {"ic50_uM": 0.19, "pIC50": 6.7212, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V3Y (1.98 Å Co-Crystal)"},
-    "TAM17": {"ic50_uM": 0.36, "pIC50": 6.4437, "source": "Aggarwal et al. Nature 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM1": {"ic50_uM": 0.26, "pIC50": 6.5850, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM2": {"ic50_uM": 0.12, "pIC50": 6.9208, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM3": {"ic50_uM": 0.24, "pIC50": 6.6198, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V42 (1.99 Å)"},
+    "TAM4": {"ic50_uM": 0.28, "pIC50": 6.5528, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM5": {"ic50_uM": 0.71, "pIC50": 6.1487, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V41 (2.05 Å)"},
+    "TAM6": {"ic50_uM": 0.32, "pIC50": 6.4949, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V40 (1.99 Å)"},
+    "TAM11": {"ic50_uM": 19.6, "pIC50": 4.7077, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM12": {"ic50_uM": 0.29, "pIC50": 6.5376, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM13": {"ic50_uM": 0.17, "pIC50": 6.7696, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM14": {"ic50_uM": 35.8, "pIC50": 4.4461, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM15": {"ic50_uM": 2.00, "pIC50": 5.6990, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
+    "TAM16": {"ic50_uM": 0.19, "pIC50": 6.7212, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 5V3Y (1.98 Å Co-Crystal)"},
+    "TAM17": {"ic50_uM": 0.36, "pIC50": 6.4437, "source": "Aggarwal et al. Cell 2017", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "Homology (PDB 5V3Y pocket)"},
     "X20403": {"ic50_uM": 0.057, "pIC50": 7.2430, "source": "Krieger et al. 2024", "assay": "Pks13-TE Fluorogenic Esterase IC50", "pdb_id": "PDB 8TQV (Co-Crystal JS9)"},
 }
 
@@ -938,10 +938,11 @@ with h_c2:
         ### Target Biology & Screening Mechanism
         - **Target Protein**: *Mycobacterium tuberculosis* Polyketide Synthase 13 Thioesterase Domain (**Pks13-TE**, PDB: `5V3Y`, 1.98 Å resolution).
         - **Mechanism**: Pks13 catalyzes the final condensation step synthesizing mature mycolic acid cell walls. Its inhibition kills multidrug-resistant tuberculosis strains.
-        - **Crystallographic Lead**: **TAM16** (Aggarwal et al., Nature Med 2017). Co-crystallized benzofuran carboxamide lead with 1.34 Å heavy-atom RMSD.
+        - **Crystallographic Reference Lead**: **TAM16** (Aggarwal et al., Cell 2017, PDB `5V3Y` / ligand `5V8`). Co-crystallized benzofuran carboxamide lead (0.19 uM enzymatic IC50).
         
         ### Key Mathematical Metrics
-        - **Predicted Affinity ($\mu \pm \sigma$)**: $\text{pIC}_{50} = -\log_{10}(\text{IC}_{50}\text{ M})$. Calibrated via Bayesian Gaussian Process surrogates.
+        - **Predicted Affinity ($\mu \pm \sigma$)**: $\text{pIC}_{50} = -\log_{10}(\text{IC}_{50}\text{ M})$. Calibrated via Bayesian variational surrogates with out-of-sample temperature scaling.
+
         - **Drug-Likeness (QED)**: Quantitative Estimate of Drug-likeness (0–1). Values $> 0.60$ indicate favorable oral bioavailability.
         - **Synthetic Difficulty (SA)**: Score 1–10 (Ertl & Schuffenhauer). Lower is easier to synthesize.
         - **PMHI Index**: $\text{PMHI} = \frac{\mu \cdot \text{QED}}{\text{SA} + 0.1}$ balances potency, drug-likeness, and synthesis feasibility (Multi-Objective Pareto optimization, Paulson et al.).
@@ -2255,14 +2256,14 @@ with tab_solvers:
             hamiltonian_scale = st.selectbox(
                 "Discretization Scale",
                 [
-                    "120 Qubits (6 Sub-Pockets, Ultra-Deep 20 Poses/Site)",
-                    "90 Qubits (6 Sub-Pockets, Ultra-Dense 15 Poses/Site)",
-                    "60 Qubits (6 Sub-Pockets, Scaled Production 10 Poses/Site)",
-                    "12 Qubits (4 Sub-Pockets, Classic Benchmark)"
+                    "120 Qubits (6 Sub-Pockets, 20 Poses/Site — Scaling Demo)",
+                    "90 Qubits (6 Sub-Pockets, 15 Poses/Site — Scaling Demo)",
+                    "60 Qubits (6 Sub-Pockets, 10 Poses/Site — Scaling Demo)",
+                    "12 Qubits (4 Sub-Pockets, Pks13 Discrete Landmark QUBO)"
                 ],
                 index=2,
                 key="tab4_scale",
-                help="Scales pocket discretization from 12 qubits up to 60, 90, or 120 binary variables across 6 sub-sites."
+                help="12 qubits provides the discrete Yanagisawa landmark problem; 60/90/120 qubits demonstrate combinatorial scaling on PDB-anchored sub-pocket centroids."
             )
         with eng_c2:
             pocket_target = st.selectbox(
@@ -2274,7 +2275,7 @@ with tab_solvers:
                     "PDB 5V40 (Asp1644Gly Resistance Mutant Cleft)"
                 ],
                 key="tab4_pocket_target",
-                help="Select crystallographic receptor state: wild-type, cryptic pocket, open loop, or clinical escape mutant."
+                help="Select crystallographic receptor context. Benchmarks RMSD against corresponding crystal structure (5V3Y or 8TQV). Pocket energy offset is currently heuristic."
             )
         with eng_c3:
             solver_engine = st.selectbox(
@@ -2416,9 +2417,18 @@ with tab_solvers:
             export_multi_model_sdf
         )
         decoded_poses = decode_bitstring_to_subpockets(bit_list, poses_per_subpocket=poses_per_site, n_subpockets=n_pockets)
-        stitched_mol = stitch_fragments_to_molecule(decoded_poses, variable_coords=coords_tensor, poses_per_subpocket=poses_per_site)
+        cand_smi = cand_row.get("smiles_can", cand_row.get("smiles"))
+        cand_id = str(cand_row.get("mol_id", "TAM16"))
+        target_ref_pdb = "8TQV" if ("8TQV" in pocket_target or cand_id == "X20403") else "5V3Y"
+        stitched_mol = stitch_fragments_to_molecule(
+            decoded_poses,
+            variable_coords=coords_tensor,
+            poses_per_subpocket=poses_per_site,
+            candidate_smiles=cand_smi
+        )
         relax_res = minimize_ligand_in_pocket(stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_max_steps)
-        rmsd_val = compute_crystal_rmsd(relax_res["minimized_mol"])
+        rmsd_val = compute_crystal_rmsd(relax_res["minimized_mol"], ref_pdb=target_ref_pdb)
+
 
         multi_sdf_data = export_multi_model_sdf(
             stitched_mol,
@@ -2460,12 +2470,13 @@ with tab_solvers:
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         with res_col1:
             st.metric(
-                "Calibrated Binding ΔG (pIC50-derived)",
+                "pIC50-Derived Affinity Proxy",
                 f"{cand_dG_bind:.2f} kcal/mol",
                 delta=delta_lead_str,
                 delta_color=delta_color,
-                help="Standard Gibbs free energy of binding estimated via thermodynamic relation (ΔG = -RT ln Kd = -1.364 * pIC50 kcal/mol at 298.15 K). Reference TAM16 ground-state is -9.17 kcal/mol."
+                help="Potency-derived affinity proxy score calculated from assay IC50 (-1.364 * pIC50 kcal/mol at 298.15 K). Note: this is a bioactivity proxy score, not a physical free energy of binding."
             )
+
 
         with res_col2:
             st.metric(
@@ -2478,14 +2489,14 @@ with tab_solvers:
             st.metric(
                 "Heavy-Atom Pose RMSD",
                 f"{rmsd_val:.2f} Å",
-                delta="Target: <2.0 Å (PDB 5V3Y)",
-                help="Heavy-atom RMSD vs. Pks13 crystallographic reference pose (5V3Y)."
+                delta=f"Target: <2.0 Å (PDB {target_ref_pdb})",
+                help=f"Heavy-atom RMSD vs. Pks13 crystallographic reference pose ({target_ref_pdb})."
             )
         with res_col4:
             st.metric(
                 "Digital Annealing Speed",
                 f"{elapsed_ms:.1f} ms",
-                delta=f"{num_agents} Agents (100% Feasible)",
+                delta=f"{num_agents} Agents (Repaired Feasible)",
                 help=f"Simulated Bifurcation execution time. Solver score: H = {qubo_interaction_score:.1f} a.u."
             )
 
@@ -2525,7 +2536,7 @@ with tab_solvers:
                     "Selected Chemical Fragment": m["moiety"],
                     "Spin Bit": f"x{m['bit']} = 1",
                     "Interaction Free Energy ΔG": f"{m['dg']:.2f} kcal/mol",
-                    "Optimization Status": "Global Minimum"
+                    "Optimization Status": "QUBO Minimized (Discrete)"
                 })
         if sel_records:
             st.dataframe(pd.DataFrame(sel_records), use_container_width=True)
@@ -2711,10 +2722,13 @@ with tab_audit:
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("PDB Reference", str(summary.get("reference_pdb", "5V3Y")), delta="1.98 Å Res")
-        m2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")), delta="Benzofuran")
-        rmsd = summary.get("heavy_atom_rmsd_A", 1.34)
-        m3.metric("Heavy-Atom RMSD", f"{rmsd:.2f} Å", delta="Passed (<2.0Å)")
+        m2.metric("Complex Lead", str(summary.get("lead_compound", "TAM16")), delta="Authentic Hit")
+        rmsd = float(summary.get("heavy_atom_rmsd_A", 0.0))
+        is_succ = bool(summary.get("rmsd_under_2A_success", False))
+        succ_delta = "Passed (<2.0Å)" if is_succ else "Evaluated"
+        m3.metric("Heavy-Atom RMSD", f"{rmsd:.2f} Å", delta=succ_delta)
         m4.metric("Constraint Violations", int(summary.get("constraint_violations", 0)), delta="0 Violations")
+
 
     st.markdown("---")
     st.markdown("##### Human-in-the-Loop (HITL) Decision Review")

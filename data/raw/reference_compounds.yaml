@@ -1,5 +1,5 @@
 # Canonical Reference Compounds for Pks13 Lead Optimization
-# Source: RCSB PDB 5V3Y (Aggarwal et al. 2017) and 8TQG (Krieger et al. 2024)
+# Source: RCSB PDB 5V3Y (Aggarwal et al. 2017) and 8TQV (Krieger et al. 2024)
 
 TAM16:
   compound_name: "TAM16"
@@ -11,24 +11,27 @@ TAM16:
   chain: "A"
   pdb_ligand_id: "5V8"
   residue_num: 1801
+  resolution_A: 1.98
   ic50_uM: 0.19
   pIC50: 6.7212
-  assay: "Pks13-TE enzymatic fluorogenic esterase cleavage (Aggarwal et al. 2017)"
+  assay: "Pks13-TE enzymatic fluorogenic esterase cleavage (Aggarwal et al. 2017 Cell)"
   secondary_assay_ic50_uM: 0.42  # Whole-cell M. tuberculosis H37Rv growth inhibition MIC/IC50
   molecular_weight: 380.44
   num_heavy_atoms: 28
 
 X20403:
   compound_name: "X20403"
-  chemical_iupac: "5-(3-ethyl-1-benzofuran-2-yl)-2-methyl-N-(thiophen-2-ylmethyl)furan-3-carboxamide"
-  smiles: "O=C(NCc1cccs1)c2c(C)oc(c2)c3c(CC)oc4ccccc34"
-  inchikey: "VMSDKDFKOGOPEX-UHFFFAOYSA-N"
-  formula: "C21H19NO3S"
-  pdb_target: "8TQG"
+  chemical_iupac: "4-(2-{4-[6-(2,5-dimethoxyphenyl)pyridin-3-yl]-1H-1,2,3-triazol-1-yl}ethyl)-N-{[1-(methoxymethyl)cyclopropyl]methyl}-N-methylbenzamide"
+  smiles: "CN(CC1(CC1)COC)C(=O)c2ccc(cc2)CCn3cc(nn3)c4ccc(nc4)c5cc(ccc5OC)OC"
+  inchikey: "MGTHESHOEDYGFD-UHFFFAOYSA-N"
+  formula: "C31H35N5O4"
+  pdb_target: "8TQV"
   chain: "A"
-  pdb_ligand_id: "8TQ"
+  pdb_ligand_id: "JS9"
+  residue_num: 1801
+  resolution_A: 2.00
   ic50_uM: 0.057
   pIC50: 7.2430
-  assay: "Pks13-TE enzymatic cleavage assay (Krieger et al. 2024)"
-  molecular_weight: 365.45
-  num_heavy_atoms: 26
+  assay: "Pks13-TE enzymatic cleavage assay (Krieger et al. 2024 PMC11091879)"
+  molecular_weight: 541.64
+  num_heavy_atoms: 40

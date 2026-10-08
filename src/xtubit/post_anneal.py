@@ -85,13 +85,15 @@ def stitch_fragments_to_molecule(
         n_heavy = mol.GetNumHeavyAtoms()
 
         # 1. Translate molecule centroid to the QUBO-selected Anchor sub-pocket position
-        anchor_idx = decoded_poses.get(0, 0)
-        anchor_coord = coords_np[anchor_idx] if anchor_idx < len(coords_np) else PKS13_SUBPOCKETS["Anchor"]["center"]
+        anchor_pose = decoded_poses.get(0, 0)
+        anchor_var_idx = 0 * poses_per_subpocket + anchor_pose
+        anchor_coord = coords_np[anchor_var_idx] if anchor_var_idx < len(coords_np) else PKS13_SUBPOCKETS["Anchor"]["center"]
         conf_centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(min(n_atoms, n_heavy))], axis=0)
         shift = anchor_coord - conf_centroid
         for i in range(n_atoms):
             pos = conf.GetAtomPosition(i)
             conf.SetAtomPosition(i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2]))
+
 
         # 2. Partition atoms across sub-pocket functional regions for sub-pocket deformation
         if target_smi == TAM16_SMILES:
@@ -194,16 +196,29 @@ def minimize_ligand_in_pocket(
 
 def compute_crystal_rmsd(
     pred_mol: Chem.Mol,
-    ref_mol: Optional[Chem.Mol] = None
+    ref_mol: Optional[Chem.Mol] = None,
+    ref_pdb: Optional[str] = None,
 ) -> float:
-    """Compute heavy-atom root mean square deviation (RMSD) vs. authentic PDB 5V3Y crystal structure."""
+    """Compute heavy-atom root mean square deviation (RMSD) vs authentic crystallographic ground truth.
+
+    Supports:
+    - PDB 5V3Y (ligand 5V8 / TAM16, 28 heavy atoms)
+    - PDB 8TQV (ligand JS9 / X20403, 40 heavy atoms)
+    """
     from pathlib import Path
     from rdkit.Chem import rdFMCS
 
+    pred_clean = Chem.RemoveHs(Chem.Mol(pred_mol))
+    n_heavy_pred = pred_clean.GetNumHeavyAtoms()
+
     if ref_mol is None:
-        # Load authentic crystallographic coordinates from PDB 5V3Y
-        sdf_path = Path("data/raw/5v3y_ligand.sdf")
-        pdb_path = Path("data/raw/5v3y_ligand.pdb")
+        if ref_pdb == "8TQV" or n_heavy_pred == 40:
+            sdf_path = Path("data/raw/8tqv_ligand.sdf")
+            pdb_path = Path("data/raw/8tqv_ligand.pdb")
+        else:
+            sdf_path = Path("data/raw/5v3y_ligand.sdf")
+            pdb_path = Path("data/raw/5v3y_ligand.pdb")
+
         if sdf_path.exists():
             suppl = Chem.SDMolSupplier(str(sdf_path))
             if len(suppl) > 0 and suppl[0] is not None:
@@ -218,8 +233,8 @@ def compute_crystal_rmsd(
         AllChem.EmbedMolecule(ref, randomSeed=42)
         ref_mol = ref
 
-    pred_clean = Chem.RemoveHs(Chem.Mol(pred_mol))
     ref_clean = Chem.RemoveHs(Chem.Mol(ref_mol))
+
 
     try:
         # Direct isomorphism alignment if atom topology matches

@@ -84,7 +84,7 @@ def run_test():
         tabs[4].click()
         time.sleep(3)
         page_src = driver.page_source
-        assert "Aggarwal et al. Nature 2017" in page_src or "Krieger" in page_src, "Empirical literature references missing in Tab 5!"
+        assert "Aggarwal et al." in page_src or "Krieger" in page_src, "Empirical literature references missing in Tab 5!"
         driver.save_screenshot(os.path.join(BRAIN_DIR, "validation_tab5_dossier.png"))
         print("[+] Tab 5 verified and screenshot saved.")
 
