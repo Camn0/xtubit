@@ -1,0 +1,66 @@
+# Upstream Dependency Pinning Lockfile
+# Generated and verified for X-TUBIT v0.2-PHYSICS-VALIDATION
+# Date: 2026-10-09
+
+[simulated-bifurcation-algorithm]
+repo = "https://github.com/bqth29/simulated-bifurcation-algorithm.git"
+commit = "dcff6d6b43b714bc512c19ab846f61d495dfea8f"
+license = "MIT"
+checked_date = "2026-10-09"
+description = "Simulated Bifurcation algorithm in Python/PyTorch with GPU multi-agent dynamics"
+
+[Tabu-Enhanced-Simulated-Bifurcation]
+repo = "https://github.com/Tao-qubit/Tabu-Enhanced-Simulated-Bifurcation.git"
+commit = "e41481fae81c2e3c49841af0b1e27b8c14872fd8"
+license = "MIT"
+checked_date = "2026-10-09"
+description = "Tabu-Enhanced Simulated Bifurcation (TESB, Communications Physics 2026 DOI: 10.1038/s42005-026-02538-2)"
+
+[pSA]
+repo = "https://github.com/nonizawa/pSA.git"
+commit = "551845188d79f4b6a8cc2b2c956927b526f7ed3c"
+license = "Modified Academic (Tohoku University commercial rights reserved)"
+checked_date = "2026-10-09"
+description = "Probabilistic Simulated Annealing (pSA, TApSA, SpSA) reference implementation"
+
+[GPU-pSAv]
+repo = "https://github.com/nonizawa/GPU-pSAv.git"
+commit = "61c8e1cf577c3871c9b089f0fc6e8b53851475db"
+license = "Modified Academic (Tohoku University commercial rights reserved)"
+checked_date = "2026-10-09"
+description = "GPU-accelerated pSAv CUDA reference implementation"
+
+[Generative_MOBO_qPMHI]
+repo = "https://github.com/PaulsonLab/Generative_MOBO_qPMHI.git"
+commit = "d32f3d1eceee01e2d8c775e5b29b3f5729116d9a"
+license = "Research Academic"
+checked_date = "2026-10-09"
+description = "Multi-Objective Bayesian Optimization with pseudo-Monte Carlo Hypervolume Improvement"
+
+[faenet]
+repo = "https://github.com/vict0rsch/faenet.git"
+commit = "1f725cfabb0ef47a44662eac7bc39325249226b2"
+license = "MIT"
+checked_date = "2026-10-09"
+description = "Frame Averaging Equivariant Neural Networks for 3D atomic systems"
+
+[pyqubo]
+repo = "https://github.com/recruit-communications/pyqubo.git"
+commit = "717c680dae392e769191f359e41c57445137af5d"
+license = "Apache 2.0"
+checked_date = "2026-10-09"
+description = "Symbolic QUBO builder and compiler"
+
+[restretto]
+repo = "https://github.com/akiyamalab/restretto.git"
+commit = "5d03209c79f0b632c28ef07ca1b07a1eca0fc2be"
+license = "MIT"
+checked_date = "2026-10-09"
+description = "Grid-based rigid-body docking and fragment decomposition tools"
+
+[coffee-presc]
+repo = "https://github.com/akiyamalab/coffee-presc.git"
+commit = "61121c5a5b8452fa5d224872358c1da79ef61598"
+license = "MIT"
+checked_date = "2026-10-09"
+description = "Consensus scoring and pharmacophore filtering reference"

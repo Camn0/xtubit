@@ -2514,7 +2514,7 @@ with tab_solvers:
             fragment_poses_coords=cand_frag_poses,
             atom_groups=cand_atom_groups
         )
-        relax_res = minimize_ligand_in_pocket(stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_max_steps)
+        relax_res = minimize_ligand_in_pocket(stitched_mol, max_steps=mmff_max_steps)
         rmsd_dict = compute_crystal_rmsd_detailed(relax_res["minimized_mol"], ref_pdb=target_ref_pdb)
         rmsd_val = rmsd_dict["conformer_aligned_rmsd_A"]
         pocket_cart_rmsd = rmsd_dict["in_pocket_cartesian_rmsd_A"]
@@ -2532,7 +2532,7 @@ with tab_solvers:
             }
         )
 
-        # Compute potency-derived affinity proxy (bioactivity proxy score from pIC50; not physical binding free energy)
+        # Compute potency-derived score (bioactivity proxy score from pIC50; not physical binding free energy)
         # Ground-truth reference: TAM16 co-crystal lead (pIC50 = 6.7212 -> proxy score = -9.17)
         has_empirical_lead = ("exp_pIC50" in cand_row and not pd.isna(cand_row["exp_pIC50"]) and cand_row["exp_pIC50"] is not None)
         active_pic50 = float(cand_row["exp_pIC50"]) if has_empirical_lead else float(cand_row["mu"])
@@ -2540,18 +2540,18 @@ with tab_solvers:
         tam16_ref_dG = -9.17
 
         if cand_row["mol_id"] == "TAM16" and pocket_energy_offset == 0.0:
-            delta_lead_str = "0.00 kcal/mol (Baseline Reference Lead)"
+            delta_lead_str = "0.00 kcal/mol-eq (Baseline Reference Lead)"
             delta_color = "off"
         else:
             delta_lead = cand_dG_bind - tam16_ref_dG
             if abs(delta_lead) < 0.05:
-                delta_lead_str = "0.00 kcal/mol (Iso-energetic to TAM16)"
+                delta_lead_str = "0.00 kcal/mol-eq (Iso-potent to TAM16)"
                 delta_color = "off"
             elif delta_lead < 0:
-                delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol More Stable than TAM16"
+                delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol-eq Higher Potency than TAM16"
                 delta_color = "normal"
             else:
-                delta_lead_str = f"{delta_lead:.2f} kcal/mol Less Stable than TAM16"
+                delta_lead_str = f"{delta_lead:.2f} kcal/mol-eq Lower Potency than TAM16"
                 delta_color = "inverse"
 
         st.markdown("---")
@@ -2560,20 +2560,19 @@ with tab_solvers:
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         with res_col1:
             st.metric(
-                "pIC50-Derived Affinity Proxy",
-                f"{cand_dG_bind:.2f} kcal/mol",
+                "Potency Proxy Score",
+                f"{cand_dG_bind:.2f} kcal/mol-eq",
                 delta=delta_lead_str,
                 delta_color=delta_color,
-                help="Potency-derived affinity proxy score calculated from assay IC50 (-1.364 * pIC50 kcal/mol at 298.15 K). Note: this is a bioactivity proxy score, not a physical free energy of binding."
+                help="Potency-derived proxy score calculated from assay IC50 (-1.364 * pIC50 kcal/mol-equivalent at 298.15 K). Note: this is a bioactivity proxy score, not a physical free energy of binding."
             )
-
 
         with res_col2:
             st.metric(
                 "Ligand Strain (MMFF94)",
-                f"{relax_res['minimized_energy_kcal_mol']:.2f} kcal/mol",
-                delta=f"{relax_res['delta_energy_kcal_mol']:+.2f} kcal/mol relaxation",
-                help="Intramolecular conformational strain energy of the ligand alone after pose relaxation under pocket anchor restraints. Note: The receptor is held rigid and not parameterized in this force-field step; binding affinity is captured by the contact potential & QUBO."
+                f"{relax_res.get('ligand_strain_energy_kcal_mol', relax_res['minimized_energy_kcal_mol']):.2f} kcal/mol",
+                delta=f"Closure shift: {relax_res.get('closure_shift_A', 0.0):.2f} Å",
+                help="Intramolecular conformational strain (E_docked - E_relaxed) after staged restrained closure. Positional restraints are released staged across all fragment heavy atoms."
             )
         with res_col3:
             st.metric(
@@ -2584,12 +2583,11 @@ with tab_solvers:
             )
         with res_col4:
             st.metric(
-                "Digital Annealing Speed",
+                "Optimization Runtime",
                 f"{elapsed_ms:.1f} ms",
                 delta=f"{num_agents} Agents (Repaired Feasible)",
-                help=f"Simulated Bifurcation execution time. Solver score: H = {qubo_interaction_score:.1f} a.u."
+                help=f"Optimization execution time. Solver score: H = {qubo_interaction_score:.1f} a.u."
             )
-
 
         # Multi-model SDF Download button
         st.download_button(
@@ -2601,32 +2599,41 @@ with tab_solvers:
             use_container_width=True
         )
 
-        # Informative Bitstring & Moieties
+        # Authentic Chemical Fragment Decomposition & Attachment Mapping
         st.markdown(f"**Decoded Pharmacophore Moieties for {cand_row['mol_id']}:**")
-        smi = cand_row["smiles_can"].lower()
-        dG_arr = cand_qubo["dG"].tolist() if "cand_qubo" in locals() else [-8.5, -7.8, -6.9, -4.2, -4.0, -3.5, -3.1, -2.8, -2.5, -2.5, -2.2, -1.9]
-        moiety_meta = [
-            {"bit": 0, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzofuran Core" if "oc2" in smi else "Heteroaromatic Core", "dg": dG_arr[0] if len(dG_arr) > 0 else -8.5},
-            {"bit": 1, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Indole Core", "dg": dG_arr[1] if len(dG_arr) > 1 else -7.8},
-            {"bit": 2, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzothiophene Core", "dg": dG_arr[2] if len(dG_arr) > 2 else -6.9},
-            {"bit": 3, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Primary Carboxamide" if "c(=o)n" in smi else "Amide Linker", "dg": dG_arr[3] if len(dG_arr) > 3 else -4.2},
-            {"bit": 4, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Ester Linkage" if "c(=o)o" in smi else "Carboxylate", "dg": dG_arr[4] if len(dG_arr) > 4 else -4.0},
-            {"bit": 5, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Methylated Carboxamide", "dg": dG_arr[5] if len(dG_arr) > 5 else -3.5},
-            {"bit": 6, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "2-Ethyl Substituent" if "cc" in smi else "Alkyl Tail", "dg": dG_arr[6] if len(dG_arr) > 6 else -3.1},
-            {"bit": 7, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Methyl Substituent", "dg": dG_arr[7] if len(dG_arr) > 7 else -2.8},
-            {"bit": 8, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Cyclopropyl Group", "dg": dG_arr[8] if len(dG_arr) > 8 else -2.5},
-            {"bit": 9, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "2-Thienyl Methyl Cap" if "s" in smi else "Heterocyclic Cap", "dg": dG_arr[9] if len(dG_arr) > 9 else -2.5},
-            {"bit": 10, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Benzyl Cap" if "c2ccccc2" in smi else "Aromatic Cap", "dg": dG_arr[10] if len(dG_arr) > 10 else -2.2},
-            {"bit": 11, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Morpholine Ethyl Cap" if "n1cc" in smi else "Solubilizing Cap", "dg": dG_arr[11] if len(dG_arr) > 11 else -1.9},
-        ]
+        cand_mol = Chem.MolFromSmiles(cand_row["smiles_can"])
+        atom_groups = cand_qubo.get("atom_groups", []) if "cand_qubo" in locals() else []
+        attachments = cand_qubo.get("attachments", []) if "cand_qubo" in locals() else []
+        variable_meta = cand_qubo.get("variable_meta", []) if "cand_qubo" in locals() else []
+
+        frag_attachments: Dict[int, List[str]] = {}
+        for (u, fu, v, fv) in attachments:
+            frag_attachments.setdefault(fu, []).append(f"Atom {u} -> Frag {fv} (Atom {v})")
+            frag_attachments.setdefault(fv, []).append(f"Atom {v} -> Frag {fu} (Atom {u})")
+
         sel_records = []
-        for m in moiety_meta:
-            if m["bit"] < len(bit_list) and bit_list[m["bit"]] == 1:
+        for var_idx, bit_val in enumerate(bit_list):
+            if bit_val == 1 and var_idx < len(variable_meta):
+                v_meta = variable_meta[var_idx]
+                p_id = v_meta["subpocket_id"]
+                pose_id = v_meta["pose_id"]
+                p_name = v_meta["subpocket_name"]
+                dG_val = v_meta["dG"]
+
+                if cand_mol is not None and p_id < len(atom_groups) and len(atom_groups[p_id]) > 0:
+                    grp_atoms = atom_groups[p_id]
+                    frag_smi = Chem.MolFragmentToSmiles(cand_mol, atomsToUse=list(grp_atoms))
+                else:
+                    frag_smi = f"Fragment {p_id}"
+
+                att_str = "; ".join(frag_attachments.get(p_id, ["Terminal"]))
+
                 sel_records.append({
-                    "Pocket Sub-site": m["pocket"],
-                    "Selected Chemical Fragment": m["moiety"],
-                    "Spin Bit": f"x{m['bit']} = 1",
-                    "Fragment Contact Potential": f"{m['dg']:.2f} a.u.",
+                    "Pocket Sub-site": f"Sub-pocket {p_id} ({p_name})",
+                    "Selected Chemical Fragment": frag_smi,
+                    "Attachment Connections": att_str,
+                    "Spin Bit": f"x{var_idx} = 1 (Pose {pose_id})",
+                    "Contact Score Proxy": f"{dG_val:.2f} a.u.",
                     "Optimization Status": "QUBO Minimized (Discrete)"
                 })
         if sel_records:

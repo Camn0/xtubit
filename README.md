@@ -165,18 +165,18 @@ All command-line interfaces use lazy imports so that dependencies in one domain 
 ### Fragment-Based Flexible Docking QUBO
 Following the discrete formulation by [Yanagisawa et al. (2024)](https://doi.org/10.3390/e26050397), the flexible docking problem is decomposed into $K$ fragments. Let $F_k$ denote the set of candidate rigid placements for fragment $k$, and $x_i \in \{0, 1\}$ be the binary variable indicating whether placement $i$ is selected:
 
-$$\min_{x \in \{0,1\}^N} E(x) = A \sum_{i} \Delta E_i \, x_i + B \sum_{i < j} c_{ij} \, x_i x_j + C \sum_{i < j} b_{ij} \, x_i x_j + D \sum_{k=1}^K \left( \sum_{i \in F_k} x_i - 1 \right)^2$$
+$$\min_{x \in \{0,1\}^N} E(x) = A \sum_{i} \text{contact\_score}_i \, x_i + B \sum_{i < j} c_{ij} \, x_i x_j + C \sum_{i < j} b_{ij} \, x_i x_j + \frac{D}{2} \sum_{k=1}^K \left( \sum_{i \in F_k} x_i - 1 \right)^2$$
 
 Where:
-- $\Delta E_i$: Protein-fragment interaction binding energy for placement $i$.
-- $c_{ij} \in \{0, 1\}$: Steric clash indicator ($c_{ij} = 1$ if placements $i$ and $j$ overlap within van der Waals radii threshold).
-- $b_{ij}$: Fragment connectivity term. In **reward mode** (matching the Yanagisawa baseline), $b_{ij} = -1$ when two placements are joinable within distance tolerance and 0 otherwise. In **penalty mode** (matching the proposal notation), $b_{ij} \ge 0$ penalizes disconnected configurations. Both modes are configurable in [`configs/b7.yaml`](configs/b7.yaml).
-- $\left(\sum_{i \in F_k} x_i - 1\right)^2$: Exact one-hot constraint ensuring exactly one placement is chosen per fragment.
+- $\text{contact\_score}_i$: Receptor-fragment contact potential score for placement $i$ (including steric clash penalty, vdW attraction well, and distance-based polar contact bonus).
+- $c_{ij} \in \{0, 1\}$: Steric clash indicator with topological exclusion ($c_{ij} = 1$ if placements $i$ and $j$ overlap within van der Waals radii threshold and graph distance $d \ge 4$).
+- $b_{ij}$: Fragment junction geometry penalty term evaluating cut bond lengths and angles vs. reference conformer medians ($b_{ij} \in [0, 1]$ in penalty mode; $b_{ij} = -(1 - \text{penalty})$ in reward mode).
+- $\frac{D}{2} \left(\sum_{i \in F_k} x_i - 1\right)^2$: Exact one-hot constraint ensuring exactly one placement is chosen per fragment.
 - $A, B, C, D$: Energy balancing weights (calibrated on dedicated training complexes, default: $A=1, B=5, C=5, D=25$).
 
-Expanding into canonical matrix form $E(x) = x^\top Q x + \text{const}$:
-- Diagonal: $Q_{ii} = A \Delta E_i - D$
-- Off-diagonal: $Q_{ij} = \frac{1}{2} (B c_{ij} + C b_{ij}) + D \cdot [i, j \in F_k]$
+Expanding into symmetric matrix form $E(x) = x^\top Q x + \text{const}$ (where off-diagonal entries are divided by two because $x^\top Q x$ counts symmetric pairs twice):
+- Diagonal: $Q_{ii} = A \cdot \text{contact\_score}_i - \frac{D}{2}$
+- Off-diagonal: $Q_{ij} = \frac{1}{2} (B c_{ij} + C b_{ij}) + \frac{D}{2} \cdot [i, j \in F_k]$
 
 ### Ising Hamiltonian Transformation
 To map the problem onto physical or simulated Ising spins $s_i \in \{-1, +1\}$ via $x_i = \frac{s_i + 1}{2}$:

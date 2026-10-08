@@ -1,8 +1,11 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
+import itertools
 import numpy as np
 import torch
+from scipy.spatial.transform import Rotation as Rot
 from rdkit import Chem
 from rdkit.Chem import AllChem, BRICS
 from .b7_qubo import build_yanagisawa_qubo, validate_qubo, QuboBundle
@@ -328,15 +331,18 @@ def get_receptor_subpocket_centers(
     receptor: str = "5V3Y",
     n_subpockets: int = 4
 ) -> Dict[str, np.ndarray]:
-    """Derive authentic sub-pocket cavity centers directly inside receptor coordinate frame."""
+    """Derive authentic sub-pocket cavity centers directly inside receptor coordinate frame.
+
+    Retrospective structure-guided docking centers derived from crystallographic reference complexes.
+    """
     rec_upper = receptor.upper()
     if "8TQV" in rec_upper:
-        # PDB 8TQV co-crystal JS9 binding cavity
+        # PDB 8TQV co-crystal JS9 authentic fragment centroids
         centers = [
-            np.array([-7.67, -12.60, 20.19]),
-            np.array([-4.62, -14.89, 17.10]),
-            np.array([-1.59, -16.33, 10.48]),
-            np.array([-2.39, -16.40, 4.69]),
+            np.array([-3.25, -15.79, 11.50]),
+            np.array([-5.00, -11.44, 20.07]),
+            np.array([-8.31, -12.01, 20.06]),
+            np.array([-0.10, -18.60, 5.25]),
         ]
     elif "5V40" in rec_upper:
         # PDB 5V40 co-crystal JS1 binding cavity
@@ -355,12 +361,12 @@ def get_receptor_subpocket_centers(
             np.array([-16.60, 6.28, 13.04]),
         ]
     else:
-        # PDB 5V3Y co-crystal 5V8 binding cavity
+        # PDB 5V3Y co-crystal 5V8 authentic fragment centroids
         centers = [
-            np.array([5.48, 30.44, 8.22]),
-            np.array([3.20, 27.65, 7.83]),
-            np.array([4.75, 25.44, 6.71]),
-            np.array([5.76, 21.61, 7.16]),
+            np.array([4.04, 24.91, 7.67]),
+            np.array([6.08, 26.62, 6.35]),
+            np.array([6.42, 25.60, 4.64]),
+            np.array([6.08, 30.53, 8.23]),
         ]
     subpocket_names = ["Anchor", "Linker", "Tunnel", "P1_Cap", "Catalytic_Triad", "Solvent_Front"]
     return {
@@ -384,13 +390,14 @@ def compute_atom_typed_docking_score(
     opt_distance: float = 3.8,
     attr_weight: float = -0.35,
     rep_weight: float = 12.0,
+    soft_clip: bool = True,
 ) -> float:
     """Calculate atom-typed physical docking score against receptor pocket heavy atoms.
     
     Includes:
     - Atom-typed steric clash penalty (quadratic when d < 0.72 * (R_i + R_j))
     - van der Waals attractive dispersion well (centered at R_i + R_j)
-    - Directional hydrogen-bond pairing rewards between polar donors/acceptors (N/O with O/N)
+    - Distance-based polar N/O contact bonus (N/O pairs between 2.4 and 3.5 A)
     """
     if len(frag_coords) == 0 or len(pocket_atoms) == 0:
         return 0.0
@@ -410,14 +417,14 @@ def compute_atom_typed_docking_score(
         vdw_mask = (dists >= 0.72 * r_sum) & (dists <= 5.5)
         attr_well = float(attr_weight * np.sum(np.exp(-0.5 * ((dists[vdw_mask] - r_sum[vdw_mask]) / 0.6) ** 2)))
 
-        # 3. Directional/polar H-bonding reward (N/O pairs between 2.4 and 3.5 A)
+        # 3. Distance-based polar N/O contact bonus (N/O pairs between 2.4 and 3.5 A)
         frag_is_polar = np.array([e.upper() in ["N", "O"] for e in frag_elements])
         pock_is_polar = np.array([e.upper() in ["N", "O"] for e in pocket_elements])
         polar_pairs = frag_is_polar[:, None] & pock_is_polar[None, :]
         hb_mask = polar_pairs & (dists >= 2.4) & (dists <= 3.5)
-        hbond_bonus = float(-1.8 * np.sum(np.exp(-0.5 * ((dists[hb_mask] - 2.85) / 0.35) ** 2))) if np.any(hb_mask) else 0.0
+        polar_contact_bonus = float(-1.8 * np.sum(np.exp(-0.5 * ((dists[hb_mask] - 2.85) / 0.35) ** 2))) if np.any(hb_mask) else 0.0
 
-        total_e = clash_pen + attr_well + hbond_bonus
+        total_e = clash_pen + attr_well + polar_contact_bonus
     else:
         clash_pen = float(np.sum(np.maximum(0.0, clash_cutoff - dists) * rep_weight))
         contact_mask = (dists >= clash_cutoff) & (dists <= 5.0)
@@ -426,6 +433,8 @@ def compute_atom_typed_docking_score(
 
     n_atoms = max(1, len(frag_coords))
     norm_e = (total_e / np.sqrt(n_atoms)) * 1.5
+    if soft_clip:
+        return float(np.tanh(norm_e / 8.0) * 8.0)
     return float(np.clip(norm_e, -9.5, 6.0))
 
 
@@ -549,6 +558,164 @@ def partition_molecule_to_subpockets(
     return atom_groups
 
 
+def parse_smiles_strict(smi: str) -> Chem.Mol:
+    """Parse candidate SMILES strictly without silent fallbacks."""
+    mol = Chem.MolFromSmiles(smi)
+    if mol is None:
+        raise ValueError(f"Invalid candidate SMILES: {smi!r}")
+    return mol
+
+
+@dataclass
+class Placement:
+    frag: int
+    parent: int
+    xyz: np.ndarray
+    score: float = 0.0
+
+
+def kabsch(P: np.ndarray, Q: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute optimal rotation R and translation t minimizing ||R P + t - Q||."""
+    Pc, Qc = P.mean(0), Q.mean(0)
+    U, _, Vt = np.linalg.svd((P - Pc).T @ (Q - Qc))
+    D = np.diag([1.0, 1.0, np.sign(np.linalg.det(Vt.T @ U.T))])
+    R = Vt.T @ D @ U.T
+    t = Qc - R @ Pc
+    return R, t
+
+
+def whole_molecule_poses(
+    conf_xyz: np.ndarray,
+    groups: List[List[int]],
+    centers: np.ndarray,
+    n_jitter: int = 40,
+    sig_rot: float = 10.0,
+    sig_t: float = 0.7,
+    seed: int = 0
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """Assign fragments to subpockets and generate conformer-coherent rigid poses with local jitter."""
+    rng = np.random.default_rng(seed)
+    K = len(groups)
+    cents = np.array([conf_xyz[g].mean(0) for g in groups])
+    best = min(
+        itertools.permutations(range(K)),
+        key=lambda p: np.linalg.norm(
+            kabsch(cents, centers[list(p)])[0] @ cents.T
+            + kabsch(cents, centers[list(p)])[1][:, None]
+            - centers[list(p)].T
+        )
+    )
+    R0, t0 = kabsch(cents, centers[list(best)])
+    poses = [(R0, t0)]
+    for _ in range(n_jitter):
+        dR = Rot.from_rotvec(np.radians(rng.normal(0, sig_rot, 3))).as_matrix()
+        dt = rng.normal(0, sig_t, 3)
+        poses.append((dR @ R0, t0 + dt))
+    return poses
+
+
+def build_pools(
+    conformers: List[np.ndarray],
+    groups: List[List[int]],
+    centers: np.ndarray,
+    score_fn: Any,
+    n_keep: int = 30,
+    div_rmsd: float = 1.0,
+    n_jitter: int = 40,
+    seed: int = 0,
+) -> List[List[Placement]]:
+    """Build conformer-coherent fragment placement pools with spatial diversity."""
+    raw: List[List[Placement]] = [[] for _ in groups]
+    pid = 0
+    for c_idx, X in enumerate(conformers):
+        for R, t in whole_molecule_poses(X, groups, centers, n_jitter=n_jitter, seed=seed + c_idx):
+            Xp = X @ R.T + t
+            for k, g in enumerate(groups):
+                raw[k].append(Placement(frag=k, parent=pid, xyz=Xp[g], score=score_fn(Xp[g], k)))
+            pid += 1
+
+    pools: List[List[Placement]] = []
+    for k in range(len(groups)):
+        kept: List[Placement] = []
+        for p in sorted(raw[k], key=lambda item: item.score):
+            if all(np.sqrt(((p.xyz - q.xyz) ** 2).sum(-1).mean()) > div_rmsd for q in kept):
+                kept.append(p)
+            if len(kept) == n_keep:
+                break
+        idx = 0
+        while len(kept) < n_keep and idx < len(raw[k]):
+            if raw[k][idx] not in kept:
+                kept.append(raw[k][idx])
+            idx += 1
+        pools.append(kept)
+    return pools
+
+
+def ang(p: np.ndarray, c: np.ndarray, q: np.ndarray) -> np.ndarray:
+    """Calculate bond angle in degrees between vectors (p - c) and (q - c)."""
+    u, w = p - c, q - c
+    norm_u = np.linalg.norm(u, axis=-1, keepdims=True)
+    norm_w = np.linalg.norm(w, axis=-1, keepdims=True)
+    cos = (u * w).sum(axis=-1, keepdims=True) / (norm_u * norm_w + 1e-9)
+    res = np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
+    return np.squeeze(res, axis=-1)
+
+
+def junction_penalty(
+    PA: List[Placement],
+    PB: List[Placement],
+    jA: Tuple[int, Optional[int]],
+    jB: Tuple[int, Optional[int]],
+    ref: Tuple[float, float, float],
+    cap: float = 12.0
+) -> np.ndarray:
+    """Evaluate inter-fragment junction geometry penalty (bond length & valence angles).
+    
+    jA=(a, a2): junction atom index + in-fragment neighbor index (local to fragment A).
+    jB=(b, b2): junction atom index + in-fragment neighbor index (local to fragment B).
+    ref=(d0, th_a0, th_b0): median reference geometry over conformer ensemble.
+    Returns (nA, nB) array of penalties b_ij in [0, 1].
+    """
+    a = np.stack([p.xyz[jA[0]] for p in PA])[:, None]  # (nA, 1, 3)
+    b = np.stack([p.xyz[jB[0]] for p in PB])[None, :]  # (1, nB, 3)
+    d = np.linalg.norm(b - a, axis=-1)                 # (nA, nB)
+    e = ((d - ref[0]) / 0.08) ** 2
+
+    if jA[1] is not None:
+        a2 = np.stack([p.xyz[jA[1]] for p in PA])[:, None]
+        e = e + ((ang(a2, a, b) - ref[1]) / 12.0) ** 2
+    if jB[1] is not None:
+        b2 = np.stack([p.xyz[jB[1]] for p in PB])[None, :]
+        e = e + ((ang(a, b, b2) - ref[2]) / 12.0) ** 2
+
+    b_ij = np.minimum(e, cap) / cap
+    for i_a, p_a in enumerate(PA):
+        for i_b, p_b in enumerate(PB):
+            if p_a.parent == p_b.parent:
+                b_ij[i_a, i_b] = 0.0
+
+    return b_ij
+
+
+def clash(
+    PA: Placement,
+    PB: Placement,
+    gA: List[int],
+    gB: List[int],
+    gd: np.ndarray,
+    rvdw: np.ndarray,
+    scale: float = 0.8,
+    min_graph: int = 4
+) -> int:
+    """Evaluate steric clash with topological exclusion (excluding 1-2, 1-3, 1-4 bonds)."""
+    if PA.parent == PB.parent:
+        return 0
+    D = np.linalg.norm(PA.xyz[:, None] - PB.xyz[None, :], axis=-1)
+    thr = scale * (rvdw[gA][:, None] + rvdw[gB][None, :])
+    topo = gd[np.ix_(gA, gB)] >= min_graph
+    return int(((D < thr) & topo).any())
+
+
 def generate_3d_rotations() -> List[np.ndarray]:
     """Generate discrete 3D rotation matrices sampling SO(3) orientations."""
     rots = []
@@ -572,33 +739,31 @@ def generate_candidate_pocket_placements(
     n_subpockets: int = 4,
     seed: int = 42,
 ) -> Dict[str, Any]:
-    """Generate candidate- and receptor-dependent 3D placements and interaction terms via 3D rigid fragment docking.
+    """Generate candidate- and receptor-dependent 3D placements via conformer-coherent docking.
 
     Computes:
     - Candidate-dependent chemical fragments via BRICS retrosynthetic cleavage.
-    - Receptor-specific binding cavity sub-pocket coordinate frames.
-    - 3D rigid-body rotation and translational grid search across receptor cavity space.
-    - Atom-typed physical docking potential (van der Waals, quadratic steric clash, directional H-bonding).
-    - Authentic inter-fragment steric clash matrix (distance < 2.0 A).
-    - Covalent connectivity rewards across cut fragment bonds.
+    - Whole-molecule conformer generation and coherent pocket alignment.
+    - Sliced fragment placement pools sharing common conformer transforms.
+    - Atom-typed physical docking score against receptor cavity.
+    - Steric clash matrix with topological exclusion (min graph distance >= 4).
+    - Covalent connectivity matrix evaluating exact junction bond distances and angles.
     """
-    rng = np.random.RandomState(seed)
-    mol = Chem.MolFromSmiles(candidate_smiles)
-    if mol is None:
-        from .post_anneal import TAM16_SMILES
-        mol = Chem.MolFromSmiles(TAM16_SMILES)
+    mol = parse_smiles_strict(candidate_smiles)
     mol = Chem.RemoveHs(mol)
 
-    if mol.GetNumConformers() == 0:
-        AllChem.EmbedMolecule(mol, randomSeed=seed)
-    conf = mol.GetConformer()
-    n_heavy = mol.GetNumHeavyAtoms()
-    atom_pts = np.array([list(conf.GetAtomPosition(i)) for i in range(n_heavy)])
+    mol_h = Chem.AddHs(mol)
+    res_embed = AllChem.EmbedMultipleConfs(mol_h, numConfs=50, randomSeed=seed)
+    if len(res_embed) == 0:
+        AllChem.EmbedMultipleConfs(mol_h, numConfs=50, useRandomCoords=True, randomSeed=seed)
+    mol_work = Chem.RemoveHs(mol_h)
+    conformers = [mol_work.GetConformer(i).GetPositions() for i in range(mol_work.GetNumConformers())]
 
     atom_groups, attachments = decompose_candidate_to_fragments(mol, n_subpockets=n_subpockets)
     pocket_atoms, pocket_elements = load_receptor_pocket_atoms(receptor=receptor, return_elements=True)
     subpocket_centers = get_receptor_subpocket_centers(receptor=receptor, n_subpockets=n_subpockets)
     subpocket_keys = list(subpocket_centers.keys())
+    centers_arr = np.array(list(subpocket_centers.values()))
 
     n_vars = n_subpockets * poses_per_subpocket
     fragment_id = torch.tensor(
@@ -606,68 +771,58 @@ def generate_candidate_pocket_placements(
         dtype=torch.long
     )
 
-    sample_3d_rotations = generate_3d_rotations()
-    grid_translations = [
-        np.array([dx, dy, dz])
-        for dx in [-1.2, 0.0, 1.2]
-        for dy in [-1.2, 0.0, 1.2]
-        for dz in [-1.2, 0.0, 1.2]
-    ]
+    def score_fn(frag_coords: np.ndarray, k: int) -> float:
+        grp = atom_groups[k]
+        frag_elems = [mol.GetAtomWithIdx(i).GetSymbol() for i in grp] if len(grp) > 0 else ["C"]
+        d_min = float(np.min(np.linalg.norm(frag_coords[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
+        clash_pen = 15.0 * (1.8 - d_min) if d_min < 1.8 else 0.0
+        e_contact = compute_atom_typed_docking_score(
+            frag_coords=frag_coords,
+            pocket_atoms=pocket_atoms,
+            frag_elements=frag_elems,
+            pocket_elements=pocket_elements,
+            soft_clip=True,
+        )
+        return e_contact + clash_pen
+
+    pools = build_pools(
+        conformers=conformers,
+        groups=atom_groups,
+        centers=centers_arr,
+        score_fn=score_fn,
+        n_keep=poses_per_subpocket,
+        div_rmsd=1.0,
+        n_jitter=30,
+        seed=seed,
+    )
 
     coords = []
     dG_list = []
     variable_meta = []
     placement_frags_coords = []
+    all_placements: List[Placement] = []
 
     for p_idx in range(n_subpockets):
-        group = atom_groups[p_idx]
         p_name = subpocket_keys[p_idx]
-        p_center = subpocket_centers[p_name]
-        frag_pts = atom_pts[group] if len(group) > 0 else np.array([[0.0, 0.0, 0.0]])
-        frag_elements = [mol.GetAtomWithIdx(i).GetSymbol() for i in group] if len(group) > 0 else ["C"]
-        frag_center = np.mean(frag_pts, axis=0)
-        frag_centered = frag_pts - frag_center
+        group = atom_groups[p_idx]
+        frag_pool = pools[p_idx]
 
-        # Physical 3D rigid fragment grid placement search across SO(3) rotations and translations
-        candidate_evals = []
-        for R in sample_3d_rotations:
-            f_rot = frag_centered @ R.T
-            for dt in grid_translations:
-                pose_c = f_rot + p_center + dt
-                # Check min distance to protein heavy atoms
-                d_min = float(np.min(np.linalg.norm(pose_c[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
-                clash_pen = 15.0 * (1.8 - d_min) if d_min < 1.8 else 0.0
-                e_contact = compute_atom_typed_docking_score(
-                    frag_coords=pose_c,
-                    pocket_atoms=pocket_atoms,
-                    frag_elements=frag_elements,
-                    pocket_elements=pocket_elements
-                )
-                e_total = e_contact + clash_pen
-                candidate_evals.append((e_total, pose_c, e_contact, d_min))
-
-        # Rank by total docking score (favoring strong contact and zero clash)
-        candidate_evals.sort(key=lambda x: x[0])
-
-        # Greedily select poses_per_subpocket spatially diverse poses (centroid distance >= 0.8 A)
-        selected_poses = []
-        for e_tot, pose_c, e_cont, d_min in candidate_evals:
-            c_new = np.mean(pose_c, axis=0)
-            if not any(np.linalg.norm(c_new - np.mean(prev[1], axis=0)) < 0.8 for prev in selected_poses):
-                selected_poses.append((e_tot, pose_c, e_cont, d_min))
-            if len(selected_poses) >= poses_per_subpocket:
-                break
-
-        while len(selected_poses) < poses_per_subpocket:
-            selected_poses.append(candidate_evals[len(selected_poses) % len(candidate_evals)])
-
-        for pose_idx, (e_tot, pose_coords, e_contact, d_min) in enumerate(selected_poses):
+        for pose_idx, p in enumerate(frag_pool):
             var_idx = p_idx * poses_per_subpocket + pose_idx
-            pose_centroid = np.mean(pose_coords, axis=0)
+            pose_centroid = np.mean(p.xyz, axis=0)
+            d_min = float(np.min(np.linalg.norm(p.xyz[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
+            e_contact = compute_atom_typed_docking_score(
+                frag_coords=p.xyz,
+                pocket_atoms=pocket_atoms,
+                frag_elements=[mol.GetAtomWithIdx(i).GetSymbol() for i in group],
+                pocket_elements=pocket_elements,
+                soft_clip=True,
+            )
 
             coords.append(pose_centroid)
-            placement_frags_coords.append(pose_coords)
-            dG_list.append(e_tot)
+            placement_frags_coords.append(p.xyz)
+            dG_list.append(p.score)
+            all_placements.append(p)
 
             variable_meta.append({
                 "var_index": var_idx,
@@ -675,74 +830,61 @@ def generate_candidate_pocket_placements(
                 "subpocket_name": p_name,
                 "pose_id": pose_idx,
                 "coord": pose_centroid.tolist(),
-                "dG": float(e_tot),
+                "dG": float(p.score),
                 "e_contact": float(e_contact),
                 "min_protein_dist": float(d_min),
                 "n_fragment_atoms": len(group),
                 "fragment_atom_indices": group,
+                "parent_id": p.parent,
             })
 
     coords_t = torch.tensor(np.array(coords), dtype=torch.float64)
     dG_t = torch.tensor(dG_list, dtype=torch.float64)
 
-    # Inter-fragment steric clashes
-    clash = torch.zeros((n_vars, n_vars), dtype=torch.float64)
+    # Inter-fragment steric clashes with topological exclusion
+    clash_t = torch.zeros((n_vars, n_vars), dtype=torch.float64)
+    gd = Chem.GetDistanceMatrix(mol)
+    pt = Chem.GetPeriodicTable()
+    rvdw = np.array([pt.GetRvdw(a.GetAtomicNum()) for a in mol.GetAtoms()])
+
     for i in range(n_vars):
         f_i = int(fragment_id[i])
-        pts_i = placement_frags_coords[i]
+        p_i = all_placements[i]
         for j in range(i + 1, n_vars):
             f_j = int(fragment_id[j])
             if f_i != f_j:
-                pts_j = placement_frags_coords[j]
-                d_mat = np.linalg.norm(pts_i[:, None, :] - pts_j[None, :, :], axis=-1)
-                if np.min(d_mat) < 2.0:
-                    clash[i, j] = clash[j, i] = 1.0
+                p_j = all_placements[j]
+                if clash(p_i, p_j, atom_groups[f_i], atom_groups[f_j], gd, rvdw):
+                    clash_t[i, j] = clash_t[j, i] = 1.0
 
-    # Inter-fragment covalent connectivity across cut bonds evaluating exact attachment atom pairs
-    conn = torch.zeros((n_vars, n_vars), dtype=torch.float64)
-    # Map (f_i, f_j) -> list of (u, v) attachment atom pairs
-    attach_map: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
-    for (u, f_u, v, f_v) in attachments:
-        pair_k = (min(f_u, f_v), max(f_u, f_v))
-        if pair_k not in attach_map:
-            attach_map[pair_k] = []
-        attach_map[pair_k].append((u, v) if f_u < f_v else (v, u))
-
+    # Inter-fragment covalent connectivity evaluated via exact junction bond geometry
+    conn_t = torch.zeros((n_vars, n_vars), dtype=torch.float64)
     adj = Chem.GetAdjacencyMatrix(mol)
-    for i in range(n_vars):
-        f_i = int(fragment_id[i])
-        pts_i = placement_frags_coords[i]
-        grp_i = atom_groups[f_i]
-        for j in range(i + 1, n_vars):
-            f_j = int(fragment_id[j])
-            if f_i != f_j:
-                pair_k = (min(f_i, f_j), max(f_i, f_j))
-                if pair_k in attach_map:
-                    grp_j = atom_groups[f_j]
-                    pts_j = placement_frags_coords[j]
-                    pair_dists = []
-                    for (u, v) in attach_map[pair_k]:
-                        if u in grp_i and v in grp_j:
-                            loc_u = grp_i.index(u)
-                            loc_v = grp_j.index(v)
-                            pair_dists.append(float(np.linalg.norm(pts_i[loc_u] - pts_j[loc_v])))
-                        elif v in grp_i and u in grp_j:
-                            loc_v = grp_i.index(v)
-                            loc_u = grp_j.index(u)
-                            pair_dists.append(float(np.linalg.norm(pts_i[loc_v] - pts_j[loc_u])))
 
-                    if pair_dists:
-                        min_attach_d = min(pair_dists)
-                        # Reward chemically plausible covalent bond distance window (1.2 - 2.2 A)
-                        if 1.2 <= min_attach_d <= 2.2:
-                            conn[i, j] = conn[j, i] = -1.0
-                elif any(adj[u, v] == 1 for u in grp_i for v in atom_groups[f_j]):
-                    # Fallback for unmapped bond
-                    grp_j = atom_groups[f_j]
-                    pts_j = placement_frags_coords[j]
-                    d_mat = np.linalg.norm(pts_i[:, None, :] - pts_j[None, :, :], axis=-1)
-                    if 1.2 <= float(np.min(d_mat)) <= 2.2:
-                        conn[i, j] = conn[j, i] = -1.0
+    # Precompute reference bond lengths and angles for cut bonds across the conformer ensemble
+    for (u, f_u, v, f_v) in attachments:
+        grp_u = atom_groups[f_u]
+        grp_v = atom_groups[f_v]
+        u2 = next((w for w in grp_u if adj[u, w] == 1), None)
+        v2 = next((w for w in grp_v if adj[v, w] == 1), None)
+
+        jA = (grp_u.index(u), grp_u.index(u2) if u2 is not None else None)
+        jB = (grp_v.index(v), grp_v.index(v2) if v2 is not None else None)
+
+        d_list = [np.linalg.norm(X[u] - X[v]) for X in conformers]
+        d0 = float(np.median(d_list))
+        th_a0 = float(np.median([ang(X[u2], X[u], X[v]) for X in conformers])) if u2 is not None else 120.0
+        th_b0 = float(np.median([ang(X[u], X[v], X[v2]) for X in conformers])) if v2 is not None else 120.0
+
+        b_mat = junction_penalty(pools[f_u], pools[f_v], jA, jB, (d0, th_a0, th_b0))
+        for p_u_idx in range(poses_per_subpocket):
+            var_u = f_u * poses_per_subpocket + p_u_idx
+            for p_v_idx in range(poses_per_subpocket):
+                var_v = f_v * poses_per_subpocket + p_v_idx
+                b_val = float(b_mat[p_u_idx, p_v_idx])
+                # Reward conforming junctions (b_val ~ 0 -> conn = -1.0; b_val ~ 1 -> conn = 0.0)
+                conn_val = -(1.0 - b_val)
+                conn_t[var_u, var_v] = conn_t[var_v, var_u] = conn_val
 
     return {
         "n_vars": n_vars,
@@ -750,8 +892,8 @@ def generate_candidate_pocket_placements(
         "poses_per_subpocket": poses_per_subpocket,
         "fragment_id": fragment_id,
         "dG": dG_t,
-        "clash": clash,
-        "conn": conn,
+        "clash": clash_t,
+        "conn": conn_t,
         "coords": coords_t,
         "fragment_poses_coords": placement_frags_coords,
         "atom_groups": atom_groups,
