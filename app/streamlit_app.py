@@ -2449,7 +2449,7 @@ with tab_solvers:
         raw_energy = float((best_agent_bits @ Q_mod @ best_agent_bits).item())
         elapsed_ms = (time.perf_counter() - t_start) * 1000
         # Decouple mathematical Lagrange penalty residue from physical interaction score
-        qubo_interaction_score = raw_energy + (scale_factor * onehot_const)
+        qubo_interaction_score = raw_energy + onehot_const
         violations = 0
 
         # Post-Annealing MMFF94 Relaxation & 3D Stitching (Task 2.3)
