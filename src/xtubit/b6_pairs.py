@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import torch
@@ -261,17 +262,36 @@ def load_receptor_pocket_atoms(
     radius: float = 12.0
 ) -> np.ndarray:
     """Extract heavy atom coordinates of receptor pocket from authentic PDB structure."""
-    from pathlib import Path
-    pdb_code = "8TQV" if "8TQV" in receptor.upper() else "5V3Y"
+    rec_upper = receptor.upper()
+    if "8TQV" in rec_upper:
+        pdb_code = "8TQV"
+        default_center = np.array([-4.07, -15.05, 13.11])
+    elif "5V40" in rec_upper:
+        pdb_code = "5V40"
+        default_center = np.array([4.50, 26.76, 7.36])
+    elif "8TQG" in rec_upper:
+        pdb_code = "8TQG"
+        default_center = np.array([-22.02, 9.04, 8.64])
+    elif "5V3Y" in rec_upper:
+        pdb_code = "5V3Y"
+        default_center = np.array([4.80, 26.29, 7.48])
+    else:
+        pdb_file = Path(f"data/raw/{rec_upper}.pdb")
+        if pdb_file.exists():
+            pdb_code = rec_upper
+            default_center = np.array([0.0, 0.0, 0.0])
+        else:
+            raise FileNotFoundError(
+                f"Receptor coordinate file for '{receptor}' was not found. "
+                f"Authentic structure file data/raw/{rec_upper}.pdb is required (no silent aliasing)."
+            )
+
     pdb_file = Path(f"data/raw/{pdb_code}.pdb")
     if not pdb_file.exists():
-        return np.array([[4.8, 22.8, 7.3], [5.7, 26.0, 6.2], [4.2, 24.5, 7.6]])
+        raise FileNotFoundError(f"Receptor coordinate file {pdb_file} does not exist. Authentic coordinates required.")
 
     if center is None:
-        if pdb_code == "8TQV":
-            center = np.array([-4.07, -15.05, 13.11])
-        else:
-            center = np.array([4.80, 26.29, 7.48])
+        center = default_center
 
     coords = []
     with open(pdb_file, "r", encoding="utf-8", errors="ignore") as f:
@@ -414,8 +434,15 @@ def generate_candidate_pocket_placements(
     subpocket_keys = list(PKS13_SUBPOCKETS.keys())[:n_subpockets]
     pocket_atoms = load_receptor_pocket_atoms(receptor=receptor)
 
-    is_8tqv = "8TQV" in receptor.upper()
-    ref_offset = np.array([-8.87, -41.34, 5.63]) if is_8tqv else np.array([0.0, 0.0, 0.0])
+    rec_upper = receptor.upper()
+    if "8TQV" in rec_upper:
+        ref_offset = np.array([-8.87, -41.34, 5.63])
+    elif "5V40" in rec_upper:
+        ref_offset = np.array([-0.30, 0.47, -0.12])
+    elif "8TQG" in rec_upper:
+        ref_offset = np.array([-26.82, -17.25, 1.16])
+    else:
+        ref_offset = np.array([0.0, 0.0, 0.0])
 
     n_vars = n_subpockets * poses_per_subpocket
     fragment_id = torch.tensor(

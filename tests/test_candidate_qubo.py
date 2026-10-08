@@ -118,3 +118,40 @@ def test_streamlit_bayesian_checkpoint_dynamic_loading():
     assert "Trained Bayesian Model" in res["surrogate_source"], f"Expected Trained Bayesian Model, got: {res['surrogate_source']}"
     assert 4.0 <= res["mu"] <= 9.0
     assert res["sigma"] > 0.1
+
+
+def test_no_silent_receptor_aliasing():
+    """Verify that all 4 bundled PDB structures (5V3Y, 8TQV, 5V40, 8TQG) load distinct coordinates."""
+    coords_5v3y = load_receptor_pocket_atoms("5V3Y")
+    coords_8tqv = load_receptor_pocket_atoms("8TQV")
+    coords_5v40 = load_receptor_pocket_atoms("5V40")
+    coords_8tqg = load_receptor_pocket_atoms("8TQG")
+
+    assert len(coords_5v3y) > 0, "5V3Y pocket coordinates must not be empty"
+    assert len(coords_8tqv) > 0, "8TQV pocket coordinates must not be empty"
+    assert len(coords_5v40) > 0, "5V40 pocket coordinates must not be empty"
+    assert len(coords_8tqg) > 0, "8TQG pocket coordinates must not be empty"
+
+    # Coordinates must not be identical across different crystallographic receptors
+    assert not np.allclose(coords_5v40.mean(axis=0), coords_8tqg.mean(axis=0))
+    assert not np.allclose(coords_5v3y.mean(axis=0), coords_8tqv.mean(axis=0))
+    assert not np.allclose(coords_5v3y.mean(axis=0), coords_8tqg.mean(axis=0))
+
+    # Missing receptor must raise FileNotFoundError, not silently fall back to 5V3Y
+    import pytest
+    with pytest.raises(FileNotFoundError):
+        load_receptor_pocket_atoms("NON_EXISTENT_PDB")
+
+
+def test_receptor_specific_qubo_four_pdbs():
+    """Verify that QUBO matrices differ across all 4 authentic PDB crystal structures."""
+    q_5v3y = build_candidate_qubo(TAM16_SMILES, receptor="5V3Y")["Q"]
+    q_8tqv = build_candidate_qubo(TAM16_SMILES, receptor="8TQV")["Q"]
+    q_5v40 = build_candidate_qubo(TAM16_SMILES, receptor="5V40")["Q"]
+    q_8tqg = build_candidate_qubo(TAM16_SMILES, receptor="8TQG")["Q"]
+
+    assert not torch.allclose(q_5v3y, q_8tqv)
+    assert not torch.allclose(q_5v3y, q_8tqg)
+    assert not torch.allclose(q_8tqv, q_8tqg)
+    assert not torch.allclose(q_5v40, q_8tqg)
+

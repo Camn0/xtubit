@@ -2123,7 +2123,7 @@ with tab_conformer:
                 st.metric("Molecular Weight", f"{ca.get('mw', 300.0):.1f} Da")
                 st.metric("Calculated LogP", f"{ca.get('logp', 3.0):.2f}")
 
-            st.caption(f"🧠 Surrogate Engine: {ca.get('surrogate_source', 'Variational Bayesian Surrogate')}")
+            st.caption(f"Surrogate Engine: {ca.get('surrogate_source', 'Variational Bayesian Surrogate')}")
 
             c_btn1, c_btn2 = st.columns(2)
             with c_btn1:
@@ -2432,6 +2432,7 @@ with tab_solvers:
             bit_list = [int(b) for b in best_bits.tolist()]
             raw_energy = float(best_val)
             best_agent_bits = best_bits
+            agent_energies = np.array([raw_energy])
         else:
             if solver_engine == "Exact Brute Force (Mathematical Proof)" and Q_mod.shape[0] > 16:
                 st.caption("ℹ️ Exact brute force on 60/90 qubits requires $2^{60} > 10^{18}$ states; automatically solved via Simulated Bifurcation in milliseconds.")
@@ -2445,6 +2446,7 @@ with tab_solvers:
             )
             best_idx = values.argmin().item()
             best_agent_bits = bits[best_idx]
+            agent_energies = values.detach().cpu().numpy()
 
         # Enforce 100% physical feasibility via greedy sub-pocket pose repair
         repaired_bits = best_agent_bits.clone().float()
@@ -2478,7 +2480,7 @@ with tab_solvers:
             decode_bitstring_to_subpockets,
             stitch_fragments_to_molecule,
             minimize_ligand_in_pocket,
-            compute_crystal_rmsd,
+            compute_crystal_rmsd_detailed,
             export_multi_model_sdf
         )
         decoded_poses = decode_bitstring_to_subpockets(bit_list, poses_per_subpocket=poses_per_site, n_subpockets=n_pockets)
@@ -2492,7 +2494,9 @@ with tab_solvers:
             candidate_smiles=cand_smi
         )
         relax_res = minimize_ligand_in_pocket(stitched_mol, frozen_atom_indices=[0, 1, 2, 3, 4, 5], max_steps=mmff_max_steps)
-        rmsd_val = compute_crystal_rmsd(relax_res["minimized_mol"], ref_pdb=target_ref_pdb)
+        rmsd_dict = compute_crystal_rmsd_detailed(relax_res["minimized_mol"], ref_pdb=target_ref_pdb)
+        rmsd_val = rmsd_dict["conformer_aligned_rmsd_A"]
+        pocket_cart_rmsd = rmsd_dict["in_pocket_cartesian_rmsd_A"]
 
 
         multi_sdf_data = export_multi_model_sdf(
@@ -2507,8 +2511,8 @@ with tab_solvers:
             }
         )
 
-        # Calibrate Physical Thermodynamic Binding Free Energy (ΔG_bind = -1.364 * pIC50 at 298.15 K)
-        # Ground-truth reference: TAM16 co-crystal lead (pIC50 = 6.7212 -> ΔG = -9.17 kcal/mol)
+        # Compute potency-derived affinity proxy (bioactivity proxy score from pIC50; not physical binding free energy)
+        # Ground-truth reference: TAM16 co-crystal lead (pIC50 = 6.7212 -> proxy score = -9.17)
         has_empirical_lead = ("exp_pIC50" in cand_row and not pd.isna(cand_row["exp_pIC50"]) and cand_row["exp_pIC50"] is not None)
         active_pic50 = float(cand_row["exp_pIC50"]) if has_empirical_lead else float(cand_row["mu"])
         cand_dG_bind = -1.364 * active_pic50 + pocket_energy_offset
@@ -2552,10 +2556,10 @@ with tab_solvers:
             )
         with res_col3:
             st.metric(
-                "Heavy-Atom Pose RMSD",
+                "Conformer-Aligned RMSD",
                 f"{rmsd_val:.2f} Å",
-                delta=f"Target: <2.0 Å (PDB {target_ref_pdb})",
-                help=f"Heavy-atom RMSD vs. Pks13 crystallographic reference pose ({target_ref_pdb})."
+                delta=f"Pocket Cartesian: {pocket_cart_rmsd:.1f} Å",
+                help=f"Conformer shape RMSD after optimal 3D rigid-body superposition vs {target_ref_pdb}. Pocket Cartesian RMSD measures absolute unaligned coordinate deviation in the receptor frame."
             )
         with res_col4:
             st.metric(
@@ -2601,45 +2605,60 @@ with tab_solvers:
                     "Pocket Sub-site": m["pocket"],
                     "Selected Chemical Fragment": m["moiety"],
                     "Spin Bit": f"x{m['bit']} = 1",
-                    "Interaction Free Energy ΔG": f"{m['dg']:.2f} kcal/mol",
+                    "Fragment Contact Potential": f"{m['dg']:.2f} a.u.",
                     "Optimization Status": "QUBO Minimized (Discrete)"
                 })
         if sel_records:
             st.dataframe(pd.DataFrame(sel_records), use_container_width=True)
 
-        # Annealing Convergence Trajectory Plot
-        st.markdown("##### Annealing Energy Convergence Trajectory")
-        steps = np.arange(0, 201, 5)
-        e_trajectory = cand_dG_bind + (4.0 * np.exp(-steps / 35.0) + 1.2 * np.exp(-steps / 15.0) * np.cos(steps / 8.0))
-        e_upper = e_trajectory + 0.8 * np.exp(-steps / 50.0)
-        e_lower = e_trajectory - 0.8 * np.exp(-steps / 50.0)
+        # Measured Multi-Agent Energy Spectrum Plot (Simulated Bifurcation / Exact Brute Force)
+        st.markdown("##### Measured Multi-Agent Energy Spectrum (Simulated Bifurcation)")
+        if len(agent_energies) > 1:
+            sorted_e = np.sort(agent_energies)
+            agent_indices = np.arange(len(sorted_e))
+            mean_e = float(np.mean(sorted_e))
+            std_e = float(np.std(sorted_e))
+            min_e = float(sorted_e[0])
 
-        fig_traj = go.Figure()
-        fig_traj.add_trace(go.Scatter(
-            x=np.concatenate([steps, steps[::-1]]),
-            y=np.concatenate([e_upper, e_lower[::-1]]),
-            fill="toself",
-            fillcolor="rgba(42, 111, 85, 0.12)",
-            line=dict(color="rgba(255,255,255,0)"),
-            name="Agent Variance Band",
-            hoverinfo="skip"
-        ))
-        fig_traj.add_trace(go.Scatter(
-            x=steps, y=e_trajectory,
-            mode="lines",
-            name="Mean Agent Energy",
-            line=dict(color="#2a6f55", width=2.5),
-            hovertemplate="Step %{x}: <b>%{y:.2f} kcal/mol</b><extra></extra>"
-        ))
-        fig_traj.update_layout(
-            height=260,
-            margin=dict(l=55, r=20, t=15, b=45),
-            paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
-            xaxis=dict(title="Annealing Time Steps (t)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
-            yaxis=dict(title="Hamiltonian Energy (kcal/mol)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
-            legend=dict(orientation="h", y=1.1, x=1, xanchor="right", font=dict(color="#78716c", size=10))
-        )
-        st.plotly_chart(fig_traj, use_container_width=True, config={"displayModeBar": False})
+            fig_traj = go.Figure()
+            # Spread area around mean
+            fig_traj.add_trace(go.Scatter(
+                x=[0, len(sorted_e) - 1, len(sorted_e) - 1, 0],
+                y=[mean_e + std_e, mean_e + std_e, mean_e - std_e, mean_e - std_e],
+                fill="toself",
+                fillcolor="rgba(42, 111, 85, 0.12)",
+                line=dict(color="rgba(255,255,255,0)"),
+                name="±1σ Agent Energy Band",
+                hoverinfo="skip"
+            ))
+            # Measured agent energies sorted
+            fig_traj.add_trace(go.Scatter(
+                x=agent_indices, y=sorted_e,
+                mode="lines+markers",
+                marker=dict(size=4, color="#2a6f55"),
+                line=dict(color="#2a6f55", width=2.0),
+                name="Sorted Agent Energies",
+                hovertemplate="Agent Rank %{x}: <b>H = %{y:.2f}</b><extra></extra>"
+            ))
+            # Best energy ground-state line
+            fig_traj.add_trace(go.Scatter(
+                x=[0, len(sorted_e) - 1], y=[min_e, min_e],
+                mode="lines",
+                line=dict(color="#e76f51", width=1.5, dash="dash"),
+                name=f"Best Energy (H = {min_e:.2f})",
+                hovertemplate="Best Energy: %{y:.2f}<extra></extra>"
+            ))
+            fig_traj.update_layout(
+                height=260,
+                margin=dict(l=55, r=20, t=15, b=45),
+                paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
+                xaxis=dict(title=f"Parallel Agent Rank (0 to {len(sorted_e)-1})", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
+                yaxis=dict(title="Measured Hamiltonian Energy (a.u.)", gridcolor="#f4f1eb", zerolinecolor="#e8e4dc", tickfont=dict(color="#78716c")),
+                legend=dict(orientation="h", y=1.1, x=1, xanchor="right", font=dict(color="#78716c", size=10))
+            )
+            st.plotly_chart(fig_traj, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.caption(f"Exact Brute Force evaluated all $2^{{{Q_mod.shape[0]}}}$ states analytically. Global minimum: H = {raw_energy:.2f}.")
 
         # Reliable Cross-Workbench Action Buttons
         act_col1, act_col2 = st.columns(2)
@@ -2688,8 +2707,8 @@ with tab_solvers:
 
     # Algorithmic Solver Benchmark Engine Comparison
     st.markdown("---")
-    st.markdown("##### Algorithmic Solver Benchmark: Quantum/Digital Annealing vs Classical CPU Solvers")
-    st.caption("Flexible docking is an NP-hard combinatorial problem ($2^N$ states). Below is empirical benchmark evidence proving why Simulated Bifurcation (Digital Annealing) outperforms classical CPU algorithms.")
+    st.markdown("##### Algorithmic Solver Benchmark: Simulated Bifurcation vs Classical CPU Solvers")
+    st.caption("Illustrative solver comparison on a small 12-variable benchmark ($2^{12} = 4,096$ states). Compares time-to-target (TTS99) and attainment metrics across Simulated Bifurcation, exact enumeration, and classical simulated annealing heuristics.")
 
     if solver_path.exists():
         df_solvers = pd.read_parquet(solver_path)
@@ -2702,14 +2721,14 @@ with tab_solvers:
         with m_s1:
             st.metric("Fastest Solver Engine", str(best_solver["solver"]), delta=f"{best_solver['tts_99']:.3f}s TTS99")
         with m_s2:
-            st.metric("Best-State Attainment Rate", f"{best_solver['p_success']*100:.0f}%", delta="100% Feasible (post-repair)")
+            st.metric("Ground-State Hit Rate", f"{best_solver['p_success']*100:.0f}%", delta="Raw Solver Sampling", help="Frequency of raw stochastic solver runs reaching the exact minimum prior to post-hoc constraint repair.")
 
         with m_s3:
             if not spsa_solver.empty:
                 speedup = spsa_solver.iloc[0]["tts_99"] / best_solver["tts_99"]
                 st.metric("Speedup vs Classical SpSA", f"{speedup:.1f}x", delta="Faster Convergence")
             else:
-                st.metric("Exact Baseline Energy", f"{exact_solver['energy']:.2f} kcal/mol")
+                st.metric("Exact Baseline Energy", f"{exact_solver['energy']:.2f}")
 
         cs1, cs2 = st.columns([1.1, 1.1], gap="large")
         solver_purples = ["#5e548e", "#7b2cbf", "#9d4edd", "#b072e6"]
@@ -2997,17 +3016,17 @@ with tab_audit:
 
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         res_col1.metric("Overall Resilience", res_profile["overall_resilience_rating"], delta="Cross-Variant Robustness")
-        res_col2.metric("Mean Penalty (ΔΔG)", f"{res_profile['mean_resistance_penalty_kcal_mol']:+.2f} kcal/mol", delta="Target: ≤ +1.5 kcal/mol")
-        res_col3.metric("Worst Escape Penalty", f"{res_profile['worst_resistance_penalty_kcal_mol']:+.2f} kcal/mol", delta="Max Observed Shift")
-        res_col4.metric("Native WT Binding", f"{wt_prof['binding_energy_kcal_mol']:.2f} kcal/mol", delta="PDB 5V3Y Native")
+        res_col2.metric("Mean Sensitivity Shift", f"{res_profile['mean_resistance_penalty_kcal_mol']:+.2f} score", delta="Computational Perturbation")
+        res_col3.metric("Worst Escape Shift", f"{res_profile['worst_resistance_penalty_kcal_mol']:+.2f} score", delta="Max Observed Shift")
+        res_col4.metric("Native WT Score", f"{wt_prof['binding_energy_kcal_mol']:.2f}", delta="PDB 5V3Y Native")
 
         # Cross-Screening Resistance Scorecard Table
         df_var = pd.DataFrame(var_profiles)[["variant_name", "mutation", "clinical_prevalence", "binding_energy_kcal_mol", "delta_delta_G_kcal_mol", "potency_retention_pct", "resilience_status", "mechanism"]]
-        df_var.columns = ["Variant", "Amino Acid Mutation", "Prevalence", "Binding Energy (kcal/mol)", "ΔΔG Shift (kcal/mol)", "Potency Retention %", "Resilience Status", "Structural Mechanism"]
+        df_var.columns = ["Variant", "Amino Acid Mutation", "Prevalence", "Baseline Score", "Mutation Sensitivity Shift", "Heuristic Retention Index %", "Resilience Status", "Structural Mechanism"]
         st.dataframe(df_var, use_container_width=True)
 
         # Cross-Variant Potency Retention Bar Chart in Soft Purple
-        st.markdown(f"**Cross-Variant Potency Retention Profile for {review_mol}:**")
+        st.markdown(f"**Cross-Variant Heuristic Retention Profile for {review_mol}:**")
         fig_mut = go.Figure()
         var_names = [v["variant_name"] for v in var_profiles]
         ret_pcts = [v["potency_retention_pct"] for v in var_profiles]
@@ -3039,10 +3058,10 @@ with tab_audit:
     st.markdown("---")
     st.markdown("##### Empirical Wet-Lab Literature Validation Benchmark (Model vs Biological Truth)")
     st.caption(
-        "**Breaking the In-Silico Echo Chamber:** AI models evaluated only on mathematical loss or self-consistency "
-        "risk becoming confirmation-bias echo chambers. Below, in-silico surrogate predictions are benchmarked directly against "
-        "independent, peer-reviewed wet-lab fluorogenic esterase enzymatic assays published in *Nature* (Aggarwal et al. 2017) "
-        "and Krieger et al. (2024), spanning 14 crystallographically and biologically characterized lead compounds."
+        "**Benchmark & Split Integrity:** In-silico surrogate predictions are benchmarked against "
+        "published wet-lab fluorogenic esterase enzymatic assays (Aggarwal et al. Cell 2017; Krieger et al. 2024). "
+        "Split provenance: TAM1–TAM15 belong to the training split (`train`); TAM16 is the validation lead (`val`); "
+        "X20403 is the held-out test lead (`test`). Missing predictions are NOT imputed with ground truth."
     )
 
     # Compile empirical benchmark series
@@ -3053,18 +3072,22 @@ with tab_audit:
         if not cand_match.empty:
             pred_val = float(cand_match.iloc[0]["mu"])
             sigma_val = float(cand_match.iloc[0].get("sigma", 0.5))
+            split_val = str(cand_match.iloc[0].get("split", "train"))
         else:
-            pred_val = float(m_info["pIC50"])
-            sigma_val = 0.5
+            # Do NOT replace missing predictions with experimental truth!
+            pred_val = np.nan
+            sigma_val = np.nan
+            split_val = "unmodeled"
         
         exp_p = float(m_info["pIC50"])
         exp_uM = float(m_info["ic50_uM"])
         exp_nM = exp_uM * 1000.0
-        err = pred_val - exp_p
-        fold_err = float(10 ** abs(err))
+        err = (pred_val - exp_p) if not np.isnan(pred_val) else np.nan
+        fold_err = float(10 ** abs(err)) if not np.isnan(err) else np.nan
 
         emp_rows.append({
             "mol_id": m_id,
+            "split": split_val,
             "source": m_info["source"],
             "exp_ic50_uM": exp_uM,
             "exp_ic50_nM": exp_nM,
@@ -3077,37 +3100,58 @@ with tab_audit:
         })
 
     df_emp_bench = pd.DataFrame(emp_rows)
+    valid_df = df_emp_bench.dropna(subset=["pred_pIC50", "exp_pIC50"])
 
-    # Compute empirical validation statistics
-    exp_vec = df_emp_bench["exp_pIC50"].values
-    pred_vec = df_emp_bench["pred_pIC50"].values
-    
-    if len(exp_vec) > 1 and np.std(pred_vec) > 1e-6 and np.std(exp_vec) > 1e-6:
-        r_val = float(np.corrcoef(pred_vec, exp_vec)[0, 1])
+    # Compute empirical validation statistics dynamically on valid predictions only
+    if len(valid_df) > 1 and np.std(valid_df["pred_pIC50"].values) > 1e-6 and np.std(valid_df["exp_pIC50"].values) > 1e-6:
+        from scipy.stats import pearsonr
+        corr_res = pearsonr(valid_df["pred_pIC50"].values, valid_df["exp_pIC50"].values)
+        r_val = float(corr_res.statistic if hasattr(corr_res, "statistic") else corr_res[0])
+        p_val = float(corr_res.pvalue if hasattr(corr_res, "pvalue") else corr_res[1])
+        r_str = f"{r_val:.3f}"
+        p_str = f"p = {p_val:.4f}"
     else:
-        r_val = 0.525
-    mae_val = float(np.mean(np.abs(pred_vec - exp_vec)))
-    ss_tot = float(np.sum((exp_vec - np.mean(exp_vec)) ** 2))
-    ss_res = float(np.sum((exp_vec - pred_vec) ** 2))
-    r2_val = float(1.0 - (ss_res / ss_tot)) if ss_tot > 0 else 0.154
-    mean_fold_err = float(np.mean(df_emp_bench["fold_error"]))
+        r_str = "N/A"
+        p_str = "N/A"
+        r_val = 0.0
+
+    if len(valid_df) > 0:
+        exp_v = valid_df["exp_pIC50"].values
+        pred_v = valid_df["pred_pIC50"].values
+        mae_val = float(np.mean(np.abs(pred_v - exp_v)))
+        ss_tot = float(np.sum((exp_v - np.mean(exp_v)) ** 2))
+        ss_res = float(np.sum((exp_v - pred_v) ** 2))
+        r2_val = float(1.0 - (ss_res / ss_tot)) if ss_tot > 0 else 0.0
+        mean_fold_err = float(np.mean(valid_df["fold_error"]))
+        mae_str = f"{mae_val:.2f} pIC50"
+        r2_str = f"{max(0.0, r2_val):.3f}"
+        fold_str = f"~{mean_fold_err:.1f}x Fold-Error"
+    else:
+        mae_str = "N/A"
+        r2_str = "N/A"
+        fold_str = "N/A"
 
     ev1, ev2, ev3, ev4 = st.columns(4)
     with ev1:
-        st.metric("Pearson Correlation (r)", f"{r_val:.3f}", delta="p = 0.054 (Empirical Series)", help="Linear correlation between in-silico surrogate predictions and published wet-lab pIC50.")
+        st.metric("Pearson Correlation (r)", r_str, delta=f"{p_str} (Evaluated Series)", help="Linear correlation dynamically calculated between model predictions and published wet-lab pIC50 via scipy.stats.pearsonr.")
     with ev2:
-        st.metric("Mean Absolute Error (MAE)", f"{mae_val:.2f} pIC50", delta=f"~{mean_fold_err:.1f}x Fold-Error", help="Mean discrepancy between model predictions and biological measurements.")
+        st.metric("Mean Absolute Error (MAE)", mae_str, delta=fold_str, help="Mean discrepancy between model predictions and biological measurements across evaluated compounds.")
     with ev3:
-        st.metric("Variance Explained (R²)", f"{max(0.0, r2_val):.3f}", delta="Bioassay Generalization", help="Proportion of experimental bioactivity variance captured by the 2D surrogate.")
+        st.metric("Variance Explained (R²)", r2_str, delta="Bioassay Generalization", help="Proportion of experimental bioactivity variance captured by the surrogate.")
     with ev4:
-        st.metric("Validated Leads", f"{len(df_emp_bench)} Series", delta="5 Co-Crystal PDBs", help="All 14 compounds characterized in peer-reviewed clinical/preclinical literature.")
+        st.metric("Validated Leads", f"{len(valid_df)} / {len(df_emp_bench)} Series", delta="4 Bundled PDB Structures", help="Compounds characterized in peer-reviewed literature. Structural anchors: 5V3Y, 8TQV, 5V40, 8TQG.")
 
     # Parity plot (Scatter of Predicted vs Wet-Lab pIC50)
     fig_parity = go.Figure()
     
-    # Parity reference line y = x
-    min_val = min(float(exp_vec.min()), float(pred_vec.min())) - 0.4
-    max_val = max(float(exp_vec.max()), float(pred_vec.max())) + 0.4
+    if len(valid_df) > 0:
+        exp_vec = valid_df["exp_pIC50"].values
+        pred_vec = valid_df["pred_pIC50"].values
+        min_val = min(float(exp_vec.min()), float(pred_vec.min())) - 0.4
+        max_val = max(float(exp_vec.max()), float(pred_vec.max())) + 0.4
+    else:
+        min_val, max_val = 3.0, 9.0
+
     fig_parity.add_trace(go.Scatter(
         x=[min_val, max_val],
         y=[min_val, max_val],
@@ -3128,32 +3172,32 @@ with tab_audit:
     ))
 
     # Compound points
-    fig_parity.add_trace(go.Scatter(
-        x=df_emp_bench["exp_pIC50"],
-        y=df_emp_bench["pred_pIC50"],
-        mode="markers+text",
-        text=df_emp_bench["mol_id"],
-        textposition="top center",
-        textfont=dict(size=10, color="#292524"),
-        marker=dict(size=10, color="#7b2cbf", line=dict(width=1.5, color="#ffffff")),
-        customdata=np.column_stack([
-            df_emp_bench["mol_id"],
-            df_emp_bench["exp_ic50_nM"],
-            df_emp_bench["reality_gap_error"],
-            df_emp_bench["fold_error"],
-            df_emp_bench["source"],
-            df_emp_bench["pdb_id"]
-        ]),
-        hovertemplate=(
-            "<b>%{customdata[0]}</b><br>"
-            "Wet-Lab Experimental: <b>%{x:.2f} pIC50</b> (~%{customdata[1]:.1f} nM)<br>"
-            "In-Silico Predicted: <b>%{y:.2f} pIC50</b><br>"
-            "Reality Gap Error: <b>%{customdata[2]:+.2f} pIC50</b> (%{customdata[3]:.1f}x error)<br>"
-            "Citation: %{customdata[4]}<br>"
-            "Structure: %{customdata[5]}<extra></extra>"
-        ),
-        name="Literature Compounds"
-    ))
+    if len(valid_df) > 0:
+        fig_parity.add_trace(go.Scatter(
+            x=valid_df["exp_pIC50"],
+            y=valid_df["pred_pIC50"],
+            mode="markers+text",
+            text=valid_df["mol_id"],
+            textposition="top center",
+            textfont=dict(size=10, color="#292524"),
+            marker=dict(size=10, color="#7b2cbf", line=dict(width=1.5, color="#ffffff")),
+            customdata=np.column_stack([
+                valid_df["mol_id"],
+                valid_df["exp_ic50_nM"],
+                valid_df["reality_gap_error"],
+                valid_df["fold_error"],
+                valid_df["split"],
+                valid_df["pdb_id"]
+            ]),
+            hovertemplate=(
+                "<b>%{customdata[0]}</b> [%{customdata[4]} split]<br>"
+                "Wet-Lab Experimental: <b>%{x:.2f} pIC50</b> (~%{customdata[1]:.1f} nM)<br>"
+                "In-Silico Predicted: <b>%{y:.2f} pIC50</b><br>"
+                "Reality Gap Error: <b>%{customdata[2]:+.2f} pIC50</b> (%{customdata[3]:.1f}x error)<br>"
+                "Structure: %{customdata[5]}<extra></extra>"
+            ),
+            name="Literature Compounds"
+        ))
 
     fig_parity.update_layout(
         height=350,
@@ -3169,11 +3213,11 @@ with tab_audit:
     # Detailed empirical table
     st.markdown("**Published Lead Series vs In-Silico Prediction Comparison Table:**")
     df_emp_display = df_emp_bench[[
-        "mol_id", "source", "exp_ic50_uM", "exp_ic50_nM", "exp_pIC50",
+        "mol_id", "split", "source", "exp_ic50_uM", "exp_ic50_nM", "exp_pIC50",
         "pred_pIC50", "reality_gap_error", "fold_error", "pdb_id"
     ]].copy()
     df_emp_display.columns = [
-        "Compound ID", "Primary Literature Reference", "Wet-Lab IC50 (µM)",
+        "Compound ID", "Data Split", "Primary Literature Reference", "Wet-Lab IC50 (µM)",
         "Wet-Lab IC50 (nM)", "Published pIC50", "In-Silico Pred (μ)",
         "Reality Gap Error (Δ)", "Fold-Error", "PDB Co-Crystal / Structural Role"
     ]
