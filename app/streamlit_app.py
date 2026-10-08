@@ -448,7 +448,7 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
                     raw_sig = float(stacked.std())
                     tau_val = float(ckpt.get("tau", 1.0))
                     pred_sigma = float(max(0.2, raw_sig * tau_val))
-                    surrogate_source = f"Trained Bayesian Model ({in_dim}-D MC-Dropout, tau={tau_val:.2f})"
+                    surrogate_source = f"Trained Bayesian Model ({in_dim}-D Variational MC Sampling, tau={tau_val:.2f})"
             except Exception as e:
                 import logging
                 logging.getLogger("xtubit").warning("Failed to load Bayesian checkpoint: %s", e)
@@ -2405,7 +2405,14 @@ with tab_solvers:
         onehot_const = float(scaled_sys["bundle"].onehot_constant)
     else:
         from xtubit.b6_pairs import build_candidate_qubo
-        target_rec_code = "8TQV" if "8TQV" in pocket_target else ("5V40" if "5V40" in pocket_target else "5V3Y")
+        if "8TQV" in pocket_target:
+            target_rec_code = "8TQV"
+        elif "8TQG" in pocket_target:
+            target_rec_code = "8TQG"
+        elif "5V40" in pocket_target:
+            target_rec_code = "5V40"
+        else:
+            target_rec_code = "5V3Y"
         cand_qubo = build_candidate_qubo(
             candidate_smiles=cand_row.get("smiles_can", cand_row.get("smiles")),
             receptor=target_rec_code,
@@ -2491,7 +2498,14 @@ with tab_solvers:
         decoded_poses = decode_bitstring_to_subpockets(bit_list, poses_per_subpocket=poses_per_site, n_subpockets=n_pockets)
         cand_smi = cand_row.get("smiles_can", cand_row.get("smiles"))
         cand_id = str(cand_row.get("mol_id", "TAM16"))
-        target_ref_pdb = "8TQV" if ("8TQV" in pocket_target or cand_id == "X20403") else "5V3Y"
+        if "8TQV" in pocket_target or cand_id == "X20403":
+            target_ref_pdb = "8TQV"
+        elif "8TQG" in pocket_target:
+            target_ref_pdb = "8TQG"
+        elif "5V40" in pocket_target:
+            target_ref_pdb = "5V40"
+        else:
+            target_ref_pdb = "5V3Y"
         stitched_mol = stitch_fragments_to_molecule(
             decoded_poses,
             variable_coords=coords_tensor,

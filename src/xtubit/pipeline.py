@@ -261,6 +261,8 @@ def run_stage_b6_b7(
         "candidate_smiles": candidate_smiles,
         "candidate_mol_id": candidate_mol_id,
         "receptor": target_receptor,
+        "fragment_poses_coords": cand_qubo_res.get("fragment_poses_coords"),
+        "atom_groups": cand_qubo_res.get("atom_groups"),
     }
     torch.save(bundle_data, qubo_dir / "tam16_qubo.pt")
     logger.info("Stage B6/B7 complete: Candidate- and receptor-dependent QUBO saved to %s", qubo_dir / "tam16_qubo.pt")
@@ -385,6 +387,8 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
             variable_coords=coords,
             poses_per_subpocket=poses_per_subpocket,
             candidate_smiles=candidate_smiles,
+            fragment_poses_coords=bundle_data.get("fragment_poses_coords"),
+            atom_groups=bundle_data.get("atom_groups"),
         )
         relaxed_res = minimize_ligand_in_pocket(stitched_mol, max_steps=50)
 
@@ -488,7 +492,9 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
             decoded,
             variable_coords=qubo_data["coords"],
             poses_per_subpocket=3,
-            candidate_smiles=exp["smi"]
+            candidate_smiles=exp["smi"],
+            fragment_poses_coords=qubo_data.get("fragment_poses_coords"),
+            atom_groups=qubo_data.get("atom_groups"),
         )
         relaxed = minimize_ligand_in_pocket(stitched, max_steps=40)
 
@@ -544,6 +550,9 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
     cross_data = {
         "status": "COMPLETED",
         "description": "Retrospective Cross-Docking Validation Benchmark with Protein Clashes and Dual RMSD",
+        "benchmark_version": "v0.2-causal-brics-physics",
+        "assembly_method": "causal_exact_fragment_placement",
+        "scoring_function": "atom_typed_vdw_clash_hbond",
         "experiments": results,
     }
     metrics_dir = out_dir / "metrics"

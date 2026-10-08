@@ -50,7 +50,7 @@
 Rather than relying on monolithic, opaque docking suites, X-TUBIT implements a **decoupled, auditable pipeline** connecting:
 1. **Geometric Deep Learning**: E(3)-equivariant feature learning via Frame Averaging Equivariant Networks ([FAENet](https://arxiv.org/abs/2305.05577)) and Bayesian Graph Neural Networks ([BGNN](https://doi.org/10.1039/C9SC03844G)) for uncertainty-aware affinity prediction ($\mu, \sigma$).
 2. **Multi-Objective Active Selection**: Batch Pareto hypervolume optimization using Probabilistic Maximum Hypervolume Improvement ([qPMHI](https://doi.org/10.1021/acs.iecr.5c04066)) bounded by chemical grammar robustness via [SELFIES](https://doi.org/10.1088/2632-2153/aba947), drug-likeness (QED), and synthetic accessibility (SA).
-3. **In-Silico Hardware Digital Twin**: An Ising-model combinatorial optimization engine executing GPU-accelerated Simulated Bifurcation ([SB](https://doi.org/10.1126/sciadv.abe7953)), Tabu-Enhanced Simulated Bifurcation ([TESB](https://doi.org/10.1038/s42005-026-02052-1)), and stochastic probabilistic-bit Simulated Annealing with Partial Deactivation ([pSA-PD](https://doi.org/10.1038/s41598-024-51786-9)) to solve fragment-based flexible docking formulated as a Quadratic Unconstrained Binary Optimization (QUBO) problem.
+3. **In-Silico Hardware Digital Twin**: An Ising-model combinatorial optimization engine executing GPU-accelerated Simulated Bifurcation ([SB](https://doi.org/10.1126/sciadv.abe7953)), Tabu-Enhanced Simulated Bifurcation ([TESB](https://doi.org/10.1038/s42005-026-02538-2)), and stochastic probabilistic-bit Simulated Annealing with Partial Deactivation ([pSA-PD](https://doi.org/10.1038/s41598-024-51786-9)) to solve fragment-based flexible docking formulated as a Quadratic Unconstrained Binary Optimization (QUBO) problem.
 4. **Human-in-the-Loop (HITL) Interface**: An interactive Streamlit dashboard allowing researchers to explore candidate rankings, 3D binding poses, solver energy trajectories, and Pareto frontiers.
 
 *Note: For the original assembly build pack specification and engineering notes, refer to [README.old.md](README.old.md).*
@@ -190,7 +190,7 @@ $$c_0 = \frac{1}{2} \mathrm{tr}(Q) + \frac{1}{2} \sum_{i < j} Q_{ij}$$
 
 ### Digital Twin Solvers: SB, TESB, and pSA-PD
 1. **Simulated Bifurcation (SB)**: Solves non-convex Ising optimization via continuous nonlinear adiabatic bifurcation dynamics on coupled classical oscillators ([Goto et al., 2021](https://doi.org/10.1126/sciadv.abe7953)).
-2. **Tabu-Enhanced Simulated Bifurcation (TESB)**: Supplements SB oscillator dynamics with memory-guided tabu penalties to destabilize previously visited local minima and accelerate escape from energetic traps ([Tao et al., 2026](https://doi.org/10.1038/s42005-026-02052-1)).
+2. **Tabu-Enhanced Simulated Bifurcation (TESB)**: Supplements SB oscillator dynamics with memory-guided tabu penalties to destabilize previously visited local minima and accelerate escape from energetic traps ([Tao et al., 2026](https://doi.org/10.1038/s42005-026-02538-2)).
 3. **Probabilistic-bit Simulated Annealing with Partial Deactivation (pSA-PD)**: Emulates networks of autonomous stochastic p-bits with dynamic sub-cluster deactivation (TApSA and SpSA variants) to overcome search stagnation ([Onizawa and Hanyu, 2024](https://doi.org/10.1038/s41598-024-51786-9)).
 
 ### Multi-Objective Acquisition via qPMHI

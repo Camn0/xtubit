@@ -698,8 +698,16 @@ def generate_candidate_pocket_placements(
                 if np.min(d_mat) < 2.0:
                     clash[i, j] = clash[j, i] = 1.0
 
-    # Inter-fragment covalent connectivity across cut bonds
+    # Inter-fragment covalent connectivity across cut bonds evaluating exact attachment atom pairs
     conn = torch.zeros((n_vars, n_vars), dtype=torch.float64)
+    # Map (f_i, f_j) -> list of (u, v) attachment atom pairs
+    attach_map: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
+    for (u, f_u, v, f_v) in attachments:
+        pair_k = (min(f_u, f_v), max(f_u, f_v))
+        if pair_k not in attach_map:
+            attach_map[pair_k] = []
+        attach_map[pair_k].append((u, v) if f_u < f_v else (v, u))
+
     adj = Chem.GetAdjacencyMatrix(mol)
     for i in range(n_vars):
         f_i = int(fragment_id[i])
@@ -708,13 +716,32 @@ def generate_candidate_pocket_placements(
         for j in range(i + 1, n_vars):
             f_j = int(fragment_id[j])
             if f_i != f_j:
-                grp_j = atom_groups[f_j]
-                is_bonded = any(adj[u, v] == 1 for u in grp_i for v in grp_j)
-                if is_bonded:
+                pair_k = (min(f_i, f_j), max(f_i, f_j))
+                if pair_k in attach_map:
+                    grp_j = atom_groups[f_j]
+                    pts_j = placement_frags_coords[j]
+                    pair_dists = []
+                    for (u, v) in attach_map[pair_k]:
+                        if u in grp_i and v in grp_j:
+                            loc_u = grp_i.index(u)
+                            loc_v = grp_j.index(v)
+                            pair_dists.append(float(np.linalg.norm(pts_i[loc_u] - pts_j[loc_v])))
+                        elif v in grp_i and u in grp_j:
+                            loc_v = grp_i.index(v)
+                            loc_u = grp_j.index(u)
+                            pair_dists.append(float(np.linalg.norm(pts_i[loc_v] - pts_j[loc_u])))
+
+                    if pair_dists:
+                        min_attach_d = min(pair_dists)
+                        # Reward chemically plausible covalent bond distance window (1.2 - 2.2 A)
+                        if 1.2 <= min_attach_d <= 2.2:
+                            conn[i, j] = conn[j, i] = -1.0
+                elif any(adj[u, v] == 1 for u in grp_i for v in atom_groups[f_j]):
+                    # Fallback for unmapped bond
+                    grp_j = atom_groups[f_j]
                     pts_j = placement_frags_coords[j]
                     d_mat = np.linalg.norm(pts_i[:, None, :] - pts_j[None, :, :], axis=-1)
-                    min_d = np.min(d_mat)
-                    if 1.2 <= min_d <= 2.4:
+                    if 1.2 <= float(np.min(d_mat)) <= 2.2:
                         conn[i, j] = conn[j, i] = -1.0
 
     return {

@@ -259,3 +259,36 @@ def test_atom_typed_docking_score_penalizes_steric_clashes():
     assert score_hbond < 0.0, "Optimal H-bond contact must produce favorable negative score"
     assert score_clash > score_hbond + 3.0, "Clash penalty must strongly exceed favorable contact"
 
+
+def test_attachment_pair_connectivity_evaluation():
+    """Verify connectivity matrix rewards poses where exact cleaved attachment atoms are close in 3D."""
+    from xtubit.b6_pairs import generate_candidate_pocket_placements
+    res = generate_candidate_pocket_placements(TAM16_SMILES, receptor="5V3Y", poses_per_subpocket=3, n_subpockets=4)
+    conn = res["conn"]
+    attachments = res["attachments"]
+    atom_groups = res["atom_groups"]
+    fragment_poses_coords = res["fragment_poses_coords"]
+    fragment_id = res["fragment_id"]
+
+    assert torch.allclose(conn, conn.T), "Connectivity matrix must be symmetric"
+    assert len(attachments) > 0, "TAM16 must have cut attachment bonds across BRICS fragments"
+
+    # For any rewarded pair, verify the specific attachment atoms are within bond distance
+    for i in range(len(fragment_id)):
+        f_i = int(fragment_id[i])
+        for j in range(i + 1, len(fragment_id)):
+            f_j = int(fragment_id[j])
+            if conn[i, j] < 0:
+                # Must be bonded fragments
+                relevant_att = [att for att in attachments if (att[1] == f_i and att[3] == f_j) or (att[1] == f_j and att[3] == f_i)]
+                assert len(relevant_att) > 0, f"Fragments {f_i} and {f_j} rewarded without an attachment record"
+                # Check that at least one attachment pair is within the bond window
+                min_d = min(
+                    np.linalg.norm(fragment_poses_coords[i][atom_groups[f_i].index(u)] - fragment_poses_coords[j][atom_groups[f_j].index(v)])
+                    if f_u == f_i else
+                    np.linalg.norm(fragment_poses_coords[i][atom_groups[f_i].index(v)] - fragment_poses_coords[j][atom_groups[f_j].index(u)])
+                    for (u, f_u, v, f_v) in relevant_att
+                )
+                assert 1.2 <= min_d <= 2.2, f"Rewarded pair has non-physical attachment distance: {min_d:.2f} A"
+
+
