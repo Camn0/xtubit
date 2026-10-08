@@ -15,3 +15,4 @@ https://dude.docking.org/
 https://zinc20.docking.org/
 https://doi.org/10.1038/s42005-026-02538-2
 https://doi.org/10.5281/zenodo.10889782
+https://github.com/recruit-communications/pyqubo

@@ -60,3 +60,83 @@ def validate_qubo(bundle: QuboBundle, equivalence_trials=1000, atol=1e-8):
     if not ok:
         raise AssertionError(f"Q->Ising equivalence failed; max error={err}")
     return {"max_equivalence_error": err, "passed": ok}
+
+
+def build_yanagisawa_pyqubo(
+    dG: torch.Tensor,
+    clash: torch.Tensor,
+    conn: torch.Tensor,
+    fragment_id: torch.Tensor,
+    A: float = 1.0,
+    B: float = 5.0,
+    C: float = 5.0,
+    D: float = 25.0,
+    half_penalty: bool = True,
+) -> tuple[QuboBundle, Any]:
+    """Symbolic construction and compilation of the Yanagisawa docking Hamiltonian using PyQUBO.
+
+    Constructs the four-term Hamiltonian symbolically:
+    H = A * H_1 (protein-fragment interaction)
+      + B * H_2 (steric clash penalty)
+      + C * H_3 (covalent connectivity)
+      + D_eff * H_4 (one-hot subpocket placement constraint with tagged labels)
+
+    Returns:
+    - bundle: QuboBundle containing symmetric Q matrix, constant offset, and variable map.
+    - pyqubo_model: Compiled PyQUBO Model object for constraint verification and BQM export.
+    """
+    try:
+        from pyqubo import Binary, Constraint
+    except ImportError as exc:
+        raise RuntimeError("Install pyqubo to use symbolic QUBO compilation") from exc
+
+    n = int(dG.numel())
+    x = [Binary(f"x_{i}") for i in range(n)]
+
+    # H1: Protein-fragment binding affinity
+    H1 = sum(dG[i].item() * x[i] for i in range(n))
+
+    # H2: Clash penalty for overlapping poses across different fragments
+    H2 = sum(
+        clash[i, j].item() * x[i] * x[j]
+        for i in range(n)
+        for j in range(i + 1, n)
+        if clash[i, j] != 0
+    )
+
+    # H3: Covalent connectivity constraint rewarding linked poses
+    H3 = sum(
+        conn[i, j].item() * x[i] * x[j]
+        for i in range(n)
+        for j in range(i + 1, n)
+        if conn[i, j] != 0
+    )
+
+    # H4: One-hot constraint per subpocket with tagged label
+    unique_frags = sorted(list(set(fragment_id.tolist())))
+    D_term = (0.5 * D) if half_penalty else float(D)
+    H4 = sum(
+        Constraint(
+            (sum(x[i] for i in range(n) if fragment_id[i] == f) - 1) ** 2,
+            label=f"onehot_frag_{f}",
+        )
+        for f in unique_frags
+    )
+
+    H = A * H1 + B * H2 + C * H3 + D_term * H4
+    model = H.compile()
+    qubo_dict, offset = model.to_qubo(index_label=False)
+
+    Q = torch.zeros((n, n), dtype=dG.dtype, device=dG.device)
+    for (k1, k2), val in qubo_dict.items():
+        i = int(k1.split("_")[1])
+        j = int(k2.split("_")[1])
+        if i == j:
+            Q[i, i] += val
+        else:
+            Q[i, j] += 0.5 * val
+            Q[j, i] += 0.5 * val
+
+    vmap = build_variable_map(fragment_id)
+    bundle = QuboBundle(Q=Q, onehot_constant=float(offset), variable_map=vmap)
+    return bundle, model

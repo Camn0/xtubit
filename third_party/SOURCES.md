@@ -14,6 +14,7 @@ Use the clone script to retrieve these projects. Do not copy the full third-part
 | REstretto | https://github.com/akiyamalab/restretto | fragment placement/docking engine | executable |
 | COFFEE-PRESC | https://github.com/akiyamalab/coffee-presc | fragment decomposition/docking auxiliary | optional |
 | Pi-Stacking | https://github.com/alebeneventi/Pi-Stacking | alternate QUBO docking reference | optional |
+| PyQUBO | https://github.com/recruit-communications/pyqubo | symbolic QUBO/Ising compilation and constraint tracking | adapter / validation reference |
 
 ## Public data/paper sources
 
