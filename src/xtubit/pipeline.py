@@ -160,6 +160,15 @@ def run_stage_b3_b4(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     df_out["sigma"] = calibrated_sigma.numpy()
     df_out["tau"] = tau
 
+    # Save trained Bayesian neural network checkpoint for live interactive inference
+    model_save_path = out_dir / "bayes_head.pt"
+    torch.save({
+        "model_state": bayes_head.state_dict(),
+        "feats": feats,
+        "tau": tau,
+    }, model_save_path)
+    logger.info("Bayesian surrogate checkpoint saved to %s", model_save_path)
+
     # Annotate partition provenance
     train_ids = set(train_df["mol_id"])
     val_ids = set(val_df["mol_id"]) if len(val_df) > 0 else set()
@@ -201,67 +210,44 @@ def run_stage_b5(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
 def run_stage_b6_b7(
     out_dir: Path,
     candidate_smiles: Optional[str] = None,
-    candidate_mol_id: str = "TAM16"
+    candidate_mol_id: str = "TAM16",
+    receptor: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Stage B6/B7: Pocket candidate placements and Yanagisawa 4-term QUBO/Ising assembly."""
-    logger.info("Executing Stage B6/B7: Pocket placement and Yanagisawa Hamiltonian formulation for %s...", candidate_mol_id)
-    # Pharmacophore fragments for lead (PDB 5V3Y pocket)
-    # 4 fragments, each with 3 candidate grid placements = N = 12 binary variables
-    n_vars = 12
-    fragment_id = torch.tensor([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3], dtype=torch.long)
-    torch.manual_seed(7)
+    """Stage B6/B7: Dynamic candidate- and receptor-dependent Yanagisawa 4-term QUBO/Ising assembly."""
+    logger.info("Executing Stage B6/B7: Dynamic pocket placement and Yanagisawa Hamiltonian formulation for %s...", candidate_mol_id)
+    if candidate_smiles is None:
+        from .post_anneal import TAM16_SMILES
+        candidate_smiles = TAM16_SMILES
 
-    from .b6_pairs import PKS13_SUBPOCKETS
-    subpocket_centers = [
-        PKS13_SUBPOCKETS["Anchor"]["center"],
-        PKS13_SUBPOCKETS["Linker"]["center"],
-        PKS13_SUBPOCKETS["Tunnel"]["center"],
-        PKS13_SUBPOCKETS["P1_Cap"]["center"],
-    ]
-    coords_list = []
-    rng = np.random.RandomState(7)
-    placement_ids = []
-    for f_idx, center in enumerate(subpocket_centers):
-        for p_idx in range(3):
-            displacement = rng.normal(0.0, 0.25, size=3)
-            coords_list.append(center + displacement)
-            placement_ids.append(f"F{f_idx}_P{p_idx}")
-    coords = torch.tensor(np.array(coords_list), dtype=torch.float64)
+    target_receptor = receptor if receptor is not None else ("8TQV" if candidate_mol_id == "X20403" else "5V3Y")
 
-    # Local binding affinity dG for each placement pose (kcal/mol)
-    dG = torch.tensor([
-        -8.5, -7.8, -6.9,  # Fragment 0 (benzofuran core)
-        -4.2, -4.0, -3.5,  # Fragment 1 (furan ester / amide bridge)
-        -3.1, -2.8, -2.5,  # Fragment 2 (alkyl substituent / tunnel)
-        -2.5, -2.2, -1.9   # Fragment 3 (methyl / cap branch)
-    ], dtype=torch.float64)
-
-    # Inter-fragment steric clash matrix (1 if steric clash, 0 otherwise)
-    clash = torch.zeros((n_vars, n_vars), dtype=torch.float64)
-    clash[0, 3] = clash[3, 0] = 1.0  # Clash between pose 0 and pose 3
-    clash[1, 4] = clash[4, 1] = 1.0
-    clash[2, 5] = clash[5, 2] = 1.0
-
-    # Connectivity matrix (-1 if valid covalent bond connection, 0 otherwise)
-    conn = torch.zeros((n_vars, n_vars), dtype=torch.float64)
-    conn[0, 4] = conn[4, 0] = -1.0  # Favorable chemical bridge
-    conn[3, 6] = conn[6, 3] = -1.0
-    conn[6, 9] = conn[9, 6] = -1.0
-
-    bundle = build_yanagisawa_qubo(
-        dG, clash, conn, fragment_id,
-        A=1.0, B=5.0, C=5.0, D=25.0,
-        placement_ids=placement_ids
+    from .b6_pairs import build_candidate_qubo
+    cand_qubo_res = build_candidate_qubo(
+        candidate_smiles=candidate_smiles,
+        receptor=target_receptor,
+        poses_per_subpocket=3,
+        n_subpockets=4,
+        A=1.0, B=5.0, C=5.0, D=25.0
     )
-    validation = validate_qubo(bundle, equivalence_trials=500, atol=1e-8)
+
+    bundle = cand_qubo_res["bundle"]
+    Q = cand_qubo_res["Q"]
+    J = cand_qubo_res["J"]
+    h = cand_qubo_res["h"]
+    c0 = cand_qubo_res["c0"]
+    dG = cand_qubo_res["dG"]
+    coords = cand_qubo_res["coords"]
+    fragment_id = cand_qubo_res["fragment_id"]
+    placement_ids = [f"F{m['subpocket_id']}_P{m['pose_id']}" for m in cand_qubo_res["variable_meta"]]
+    validation = cand_qubo_res["validation"]
+
     logger.info("Stage B7 validation: max equivalence error = %.2e (passed=%s)",
                 validation["max_equivalence_error"], validation["passed"])
 
-    J, h, c0 = qubo_to_ising(bundle.Q)
     qubo_dir = out_dir / "qubo"
     qubo_dir.mkdir(parents=True, exist_ok=True)
     bundle_data = {
-        "Q": bundle.Q,
+        "Q": Q,
         "J": J,
         "h": h,
         "c0": c0,
@@ -274,9 +260,10 @@ def run_stage_b6_b7(
         "poses_per_subpocket": 3,
         "candidate_smiles": candidate_smiles,
         "candidate_mol_id": candidate_mol_id,
+        "receptor": target_receptor,
     }
     torch.save(bundle_data, qubo_dir / "tam16_qubo.pt")
-    logger.info("Stage B6/B7 complete: QUBO and Ising matrices saved to %s", qubo_dir / "tam16_qubo.pt")
+    logger.info("Stage B6/B7 complete: Candidate- and receptor-dependent QUBO saved to %s", qubo_dir / "tam16_qubo.pt")
     return bundle_data
 
 
@@ -452,6 +439,84 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
 
 
 
+def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
+    """Execute rigorous cross-docking benchmarks across distinct Pks13 receptor conformations.
+
+    Cross-docking protocol:
+    1. Cognate 1: TAM16 docked into native wild-type PDB 5V3Y.
+    2. Cognate 2: X20403 docked into native cryptic-pocket PDB 8TQV.
+    3. Cross-docking 1: X20403 docked into foreign wild-type PDB 5V3Y.
+    4. Cross-docking 2: TAM16 docked into foreign cryptic-pocket PDB 8TQV.
+    """
+    logger.info("Executing Cross-Docking Benchmark across 5V3Y (Closed) and 8TQV (Open)...")
+    from .b6_pairs import build_candidate_qubo
+    from .solvers.exact import brute_force_qubo
+    from .post_anneal import (
+        TAM16_SMILES,
+        decode_bitstring_to_subpockets,
+        stitch_fragments_to_molecule,
+        minimize_ligand_in_pocket,
+        compute_crystal_rmsd
+    )
+
+    x20403_smi = "CN(CC1(CC1)COC)C(=O)c2ccc(cc2)CCn3cc(nn3)c4ccc(nc4)c5cc(ccc5OC)OC"
+
+    experiments = [
+        {"name": "Cognate (TAM16 in 5V3Y)", "cand_id": "TAM16", "smi": TAM16_SMILES, "receptor": "5V3Y", "ref_pdb": "5V3Y"},
+        {"name": "Cognate (X20403 in 8TQV)", "cand_id": "X20403", "smi": x20403_smi, "receptor": "8TQV", "ref_pdb": "8TQV"},
+        {"name": "Cross-Docking (X20403 in 5V3Y)", "cand_id": "X20403", "smi": x20403_smi, "receptor": "5V3Y", "ref_pdb": "8TQV"},
+        {"name": "Cross-Docking (TAM16 in 8TQV)", "cand_id": "TAM16", "smi": TAM16_SMILES, "receptor": "8TQV", "ref_pdb": "5V3Y"},
+    ]
+
+    results = []
+    for exp in experiments:
+        qubo_data = build_candidate_qubo(
+            candidate_smiles=exp["smi"],
+            receptor=exp["receptor"],
+            poses_per_subpocket=3,
+            n_subpockets=4
+        )
+        Q = qubo_data["Q"]
+        x_exact, e_exact = brute_force_qubo(Q)
+        bit_list = [int(b) for b in x_exact.tolist()]
+
+        decoded = decode_bitstring_to_subpockets(bit_list, poses_per_subpocket=3, n_subpockets=4)
+        stitched = stitch_fragments_to_molecule(
+            decoded,
+            variable_coords=qubo_data["coords"],
+            poses_per_subpocket=3,
+            candidate_smiles=exp["smi"]
+        )
+        relaxed = minimize_ligand_in_pocket(stitched, max_steps=40)
+        rmsd = compute_crystal_rmsd(relaxed["minimized_mol"], ref_pdb=exp["ref_pdb"])
+
+        results.append({
+            "experiment": exp["name"],
+            "compound": exp["cand_id"],
+            "receptor_pdb": exp["receptor"],
+            "reference_crystal_pdb": exp["ref_pdb"],
+            "qubo_energy": round(float(e_exact), 3),
+            "minimized_energy_kcal_mol": relaxed["minimized_energy_kcal_mol"],
+            "heavy_atom_rmsd_A": rmsd,
+            "success_under_2A": bool(rmsd < 2.0),
+        })
+        logger.info("%s: Energy=%.2f, RMSD=%.2f A (Success=%s)",
+                    exp["name"], float(e_exact), rmsd, rmsd < 2.0)
+
+    cross_data = {
+        "status": "COMPLETED",
+        "description": "Retrospective Cross-Docking Validation Benchmark",
+        "experiments": results,
+    }
+    metrics_dir = out_dir / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    with open(metrics_dir / "cross_docking.json", "w", encoding="utf-8") as f:
+        json.dump(cross_data, f, indent=2)
+
+    logger.info("Cross-docking benchmarks written to %s", metrics_dir / "cross_docking.json")
+    return cross_data
+
+
 def run_pipeline(raw_csv: str = "data/raw/pks13_compounds.csv", out_dir: str = "data/processed") -> Dict[str, Any]:
     """Executes the complete X-TUBIT computational workflow."""
     start_time = time.perf_counter()
@@ -484,6 +549,9 @@ def run_pipeline(raw_csv: str = "data/raw/pks13_compounds.csv", out_dir: str = "
     # Stage B9
     summary = run_stage_b9(bundle_data, solver_results, out_path)
 
+    # Cross-Docking Benchmark
+    cross_summary = run_cross_docking_benchmark(out_path)
+    summary["cross_docking"] = cross_summary
 
     total_time = time.perf_counter() - start_time
     summary["pipeline_wall_time_s"] = total_time

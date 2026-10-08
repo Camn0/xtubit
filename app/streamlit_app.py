@@ -397,14 +397,6 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
         qed_val = float(QED.qed(mol))
         sa_val = float(sascorer.calculateScore(mol))
 
-        # Calibrated Bayesian surrogate affinity prediction for Pks13
-        pred_mu = float(np.clip(6.4 + 1.2 * qed_val - 0.22 * sa_val + 0.12 * min(logp, 5.0), 4.5, 8.8))
-        pred_sigma = float(np.clip(0.45 + 0.08 * abs(sa_val - 2.5), 0.35, 1.2))
-        qpmhi_score = float((pred_mu * qed_val) / (sa_val + 0.1))
-
-        lipinski_violations = sum([mw > 500, logp > 5.0, hbd > 5, hba > 10])
-        veber_compliant = (rot_bonds <= 10)
-
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
         from xtubit.admet_predictors import predict_admet_profile
         try:
@@ -416,6 +408,41 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
         admet_prof = predict_admet_profile(mol)
         scscore_v = estimate_synthetic_complexity(mol)
         route_v = estimate_synthetic_route(mol)
+
+        # Calibrated Bayesian surrogate affinity prediction for Pks13
+        # Use trained PyTorch variational Bayesian model if checkpoint is present
+        pred_mu = None
+        pred_sigma = None
+        ckpt_path = Path("data/processed/bayes_head.pt")
+        if ckpt_path.exists():
+            try:
+                ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+                from xtubit.b4_bayesian_gnn import BayesianLinear
+                b_head = torch.nn.Sequential(
+                    BayesianLinear(6, 32, prior_sigma=0.1),
+                    torch.nn.SiLU(),
+                    BayesianLinear(32, 1, prior_sigma=0.1)
+                )
+                b_head.load_state_dict(ckpt["model_state"])
+                b_head.eval()
+                feat_vec = torch.tensor([[qed_val, sa_val, scscore_v, mw, logp, float(rot_bonds)]], dtype=torch.float32)
+                with torch.no_grad():
+                    mc_samples = [b_head(feat_vec).squeeze() for _ in range(30)]
+                    stacked = torch.stack(mc_samples)
+                    pred_mu = float(stacked.mean())
+                    raw_sig = float(stacked.std())
+                    tau_val = float(ckpt.get("tau", 1.0))
+                    pred_sigma = float(max(0.2, raw_sig * tau_val))
+            except Exception:
+                pass
+
+        if pred_mu is None:
+            pred_mu = float(np.clip(6.4 + 1.2 * qed_val - 0.22 * sa_val + 0.12 * min(logp, 5.0), 4.5, 8.8))
+            pred_sigma = float(np.clip(0.45 + 0.08 * abs(sa_val - 2.5), 0.35, 1.2))
+        qpmhi_score = float((pred_mu * qed_val) / (sa_val + 0.1))
+
+        lipinski_violations = sum([mw > 500, logp > 5.0, hbd > 5, hba > 10])
+        veber_compliant = (rot_bonds <= 10)
 
 
         return {
@@ -2348,26 +2375,32 @@ with tab_solvers:
             C=float(param_c),
             D=25.0 * float(penalty_d_mult)
         )
-        Q_base = scaled_sys["Q"].float()
+        Q_mod = scaled_sys["Q"].float()
         frag_id = scaled_sys["fragment_id"]
         coords_tensor = scaled_sys["coords"]
         onehot_const = float(scaled_sys["bundle"].onehot_constant)
-    elif qubo_path.exists():
-        qubo_dict = torch.load(qubo_path, map_location="cpu")
-        Q_base = qubo_dict["Q"].float()
-        frag_id = qubo_dict["fragment_id"]
+    else:
+        from xtubit.b6_pairs import build_candidate_qubo
+        target_rec_code = "8TQV" if "8TQV" in pocket_target else ("5V40" if "5V40" in pocket_target else "5V3Y")
+        cand_qubo = build_candidate_qubo(
+            candidate_smiles=cand_row.get("smiles_can", cand_row.get("smiles")),
+            receptor=target_rec_code,
+            poses_per_subpocket=3,
+            n_subpockets=4,
+            A=float(param_a),
+            B=float(param_b),
+            C=float(param_c),
+            D=25.0 * float(penalty_d_mult)
+        )
+        Q_mod = cand_qubo["Q"].float()
+        frag_id = cand_qubo["fragment_id"]
+        coords_tensor = cand_qubo["coords"]
         poses_per_site = 3
         n_pockets = 4
-        onehot_const = float(qubo_dict.get("onehot_constant", 50.0)) * penalty_d_mult
-    else:
-        Q_base = None
+        onehot_const = float(cand_qubo["bundle"].onehot_constant)
 
-    if Q_base is not None:
-        ref_mu = df_active[df_active["mol_id"] == "TAM16"]["mu"].values[0] if "TAM16" in df_active["mol_id"].values else 6.22
-        scale_factor = float(cand_row["mu"] / ref_mu)
-
+    if Q_mod is not None:
         t_start = time.perf_counter()
-        Q_mod = (Q_base * scale_factor)
 
         if solver_engine == "Exact Brute Force (Mathematical Proof)" and Q_mod.shape[0] <= 16:
             try:
@@ -2525,19 +2558,20 @@ with tab_solvers:
         # Informative Bitstring & Moieties
         st.markdown(f"**Decoded Pharmacophore Moieties for {cand_row['mol_id']}:**")
         smi = cand_row["smiles_can"].lower()
+        dG_arr = cand_qubo["dG"].tolist() if "cand_qubo" in locals() else [-8.5, -7.8, -6.9, -4.2, -4.0, -3.5, -3.1, -2.8, -2.5, -2.5, -2.2, -1.9]
         moiety_meta = [
-            {"bit": 0, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzofuran Core" if "oc2" in smi else "Heteroaromatic Core", "dg": -8.5 * scale_factor},
-            {"bit": 1, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Indole Core", "dg": -7.8 * scale_factor},
-            {"bit": 2, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzothiophene Core", "dg": -6.9 * scale_factor},
-            {"bit": 3, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Primary Carboxamide" if "c(=o)n" in smi else "Amide Linker", "dg": -4.2 * scale_factor},
-            {"bit": 4, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Ester Linkage" if "c(=o)o" in smi else "Carboxylate", "dg": -4.0 * scale_factor},
-            {"bit": 5, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Methylated Carboxamide", "dg": -3.5 * scale_factor},
-            {"bit": 6, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "2-Ethyl Substituent" if "cc" in smi else "Alkyl Tail", "dg": -3.1 * scale_factor},
-            {"bit": 7, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Methyl Substituent", "dg": -2.8 * scale_factor},
-            {"bit": 8, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Cyclopropyl Group", "dg": -2.5 * scale_factor},
-            {"bit": 9, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "2-Thienyl Methyl Cap" if "s" in smi else "Heterocyclic Cap", "dg": -2.5 * scale_factor},
-            {"bit": 10, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Benzyl Cap" if "c2ccccc2" in smi else "Aromatic Cap", "dg": -2.2 * scale_factor},
-            {"bit": 11, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Morpholine Ethyl Cap" if "n1cc" in smi else "Solubilizing Cap", "dg": -1.9 * scale_factor},
+            {"bit": 0, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzofuran Core" if "oc2" in smi else "Heteroaromatic Core", "dg": dG_arr[0] if len(dG_arr) > 0 else -8.5},
+            {"bit": 1, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Indole Core", "dg": dG_arr[1] if len(dG_arr) > 1 else -7.8},
+            {"bit": 2, "pocket": "Sub-pocket 0 (Core Scaffold)", "moiety": "Benzothiophene Core", "dg": dG_arr[2] if len(dG_arr) > 2 else -6.9},
+            {"bit": 3, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Primary Carboxamide" if "c(=o)n" in smi else "Amide Linker", "dg": dG_arr[3] if len(dG_arr) > 3 else -4.2},
+            {"bit": 4, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Ester Linkage" if "c(=o)o" in smi else "Carboxylate", "dg": dG_arr[4] if len(dG_arr) > 4 else -4.0},
+            {"bit": 5, "pocket": "Sub-pocket 1 (Linker)", "moiety": "Methylated Carboxamide", "dg": dG_arr[5] if len(dG_arr) > 5 else -3.5},
+            {"bit": 6, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "2-Ethyl Substituent" if "cc" in smi else "Alkyl Tail", "dg": dG_arr[6] if len(dG_arr) > 6 else -3.1},
+            {"bit": 7, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Methyl Substituent", "dg": dG_arr[7] if len(dG_arr) > 7 else -2.8},
+            {"bit": 8, "pocket": "Sub-pocket 2 (Hydrophobic Tail)", "moiety": "Cyclopropyl Group", "dg": dG_arr[8] if len(dG_arr) > 8 else -2.5},
+            {"bit": 9, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "2-Thienyl Methyl Cap" if "s" in smi else "Heterocyclic Cap", "dg": dG_arr[9] if len(dG_arr) > 9 else -2.5},
+            {"bit": 10, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Benzyl Cap" if "c2ccccc2" in smi else "Aromatic Cap", "dg": dG_arr[10] if len(dG_arr) > 10 else -2.2},
+            {"bit": 11, "pocket": "Sub-pocket 3 (P1 Sub-pocket Cap)", "moiety": "Morpholine Ethyl Cap" if "n1cc" in smi else "Solubilizing Cap", "dg": dG_arr[11] if len(dG_arr) > 11 else -1.9},
         ]
         sel_records = []
         for m in moiety_meta:

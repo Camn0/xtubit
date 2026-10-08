@@ -1,0 +1,46 @@
+{
+  "status": "COMPLETED",
+  "description": "Retrospective Cross-Docking Validation Benchmark",
+  "experiments": [
+    {
+      "experiment": "Cognate (TAM16 in 5V3Y)",
+      "compound": "TAM16",
+      "receptor_pdb": "5V3Y",
+      "reference_crystal_pdb": "5V3Y",
+      "qubo_energy": -85.236,
+      "minimized_energy_kcal_mol": 8.55,
+      "heavy_atom_rmsd_A": 0.432,
+      "success_under_2A": true
+    },
+    {
+      "experiment": "Cognate (X20403 in 8TQV)",
+      "compound": "X20403",
+      "receptor_pdb": "8TQV",
+      "reference_crystal_pdb": "8TQV",
+      "qubo_energy": -50.957,
+      "minimized_energy_kcal_mol": 241.34,
+      "heavy_atom_rmsd_A": 2.839,
+      "success_under_2A": false
+    },
+    {
+      "experiment": "Cross-Docking (X20403 in 5V3Y)",
+      "compound": "X20403",
+      "receptor_pdb": "5V3Y",
+      "reference_crystal_pdb": "8TQV",
+      "qubo_energy": -70.736,
+      "minimized_energy_kcal_mol": 241.34,
+      "heavy_atom_rmsd_A": 2.839,
+      "success_under_2A": false
+    },
+    {
+      "experiment": "Cross-Docking (TAM16 in 8TQV)",
+      "compound": "TAM16",
+      "receptor_pdb": "8TQV",
+      "reference_crystal_pdb": "5V3Y",
+      "qubo_energy": -62.312,
+      "minimized_energy_kcal_mol": 36.92,
+      "heavy_atom_rmsd_A": 0.442,
+      "success_under_2A": true
+    }
+  ]
+}
