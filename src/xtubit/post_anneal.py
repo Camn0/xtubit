@@ -18,8 +18,9 @@ from rdkit.Chem import AllChem, Descriptors, rdMolAlign
 from .b6_pairs import PKS13_SUBPOCKETS, PKS13_ADJACENT_SUBPOCKETS
 
 
-# Canonical SMILES for TAM16 lead (Aggarwal et al. 2017 Cell, PDB 5V3Y)
-TAM16_SMILES = "CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23"
+# Canonical SMILES for TAM16 lead (PDB 5V3Y, ligand 5V8; Aggarwal et al. 2017 Cell)
+# Formula: C22H24N2O4, MW: 380.44 Da, 28 heavy atoms
+TAM16_SMILES = "CNC(=O)c1c(-c2ccc(O)cc2)oc2ccc(O)c(CN3CCCCC3)c12"
 
 
 def decode_bitstring_to_subpockets(
@@ -48,6 +49,7 @@ def decode_bitstring_to_subpockets(
         else:
             selected[p_id] = 0  # fallback to reference pose
     return selected
+
 
 
 def stitch_fragments_to_molecule(
@@ -94,13 +96,14 @@ def stitch_fragments_to_molecule(
         # 2. Partition atoms across sub-pocket functional regions for sub-pocket deformation
         if target_smi == TAM16_SMILES:
             subpocket_atom_groups = {
-                0: [10, 11, 12, 13, 14, 15, 16, 17],  # Benzofuran core
-                1: [1, 2, 3],                          # Carbonyl / ester bridge
-                2: [7, 8],                             # Tunnel alkyl / ethyl
-                3: [5, 6],                             # P1 cap / methyl
-                4: [0, 4],                             # Active-site ester handle
-                5: [9, 18, 19, 20, 21],                # Solvent front
+                0: [4, 5, 11, 12, 13, 14, 15, 16, 17, 19, 26, 27],  # Benzofuran core & fused heterocycle
+                1: [0, 1, 2, 3],                                      # Methylcarboxamide linker CNC(=O)-
+                2: [6, 7, 8, 9],                                      # Hydroxyphenyl substituent
+                3: [21, 22, 23, 24, 25],                              # Piperidine ring (P1 cap)
+                4: [10, 18],                                          # Phenolic hydroxyl handles
+                5: [20],                                              # Methylene linker
             }
+
         else:
             heavy_indices = [i for i in range(min(n_atoms, n_heavy))]
             chunk_size = max(1, len(heavy_indices) // len(decoded_poses)) if decoded_poses else 1

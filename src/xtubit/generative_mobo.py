@@ -23,7 +23,7 @@ from rdkit.Chem.Scaffolds import MurckoScaffold
 from .b1_data import standardize_smiles, sa_score, featurize
 from .medchem_filters import evaluate_medchem_cleanliness
 from .admet_predictors import predict_admet_profile
-from .retrosynthesis import calculate_scscore, estimate_synthetic_route
+from .retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
 from .b4_bayesian_gnn import BayesianLinear, calibrate_sigma
 from .qpmhi import pareto_front, qpmhi_scores
 

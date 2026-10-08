@@ -1,12 +1,14 @@
 {
   "status": "COMPLETED",
   "reference_pdb": "5V3Y",
+  "reference_ligand_id": "5V8",
   "reference_resolution_A": 1.98,
-  "lead_compound": "TAM16",
+  "lead_compound": "X20403",
+  "candidate_smiles": "CCc1oc2ccccc2c1-c1cc(C(=O)NCc2cccs2)c(C)o1",
   "total_qubo_variables": 12,
   "best_solver": "Exact (Brute Force)",
-  "heavy_atom_rmsd_A": 1.938,
-  "rmsd_under_2A_success": true,
+  "heavy_atom_rmsd_A": 2.671,
+  "rmsd_under_2A_success": false,
   "repaired_solution_bits": [
     1,
     0,
@@ -26,8 +28,8 @@
       "solver": "Exact (Brute Force)",
       "raw_energy": -28.1,
       "constraint_violations": 0,
-      "repaired_rmsd_A": 1.938,
-      "rmsd_under_2A_success": true,
+      "repaired_rmsd_A": 2.671,
+      "rmsd_under_2A_success": false,
       "repaired_bits": [
         1,
         0,
@@ -47,8 +49,8 @@
       "solver": "TApSA",
       "raw_energy": -28.1,
       "constraint_violations": 0,
-      "repaired_rmsd_A": 1.938,
-      "rmsd_under_2A_success": true,
+      "repaired_rmsd_A": 2.671,
+      "rmsd_under_2A_success": false,
       "repaired_bits": [
         1,
         0,
@@ -68,8 +70,8 @@
       "solver": "SpSA",
       "raw_energy": -28.1,
       "constraint_violations": 0,
-      "repaired_rmsd_A": 1.938,
-      "rmsd_under_2A_success": true,
+      "repaired_rmsd_A": 2.671,
+      "rmsd_under_2A_success": false,
       "repaired_bits": [
         1,
         0,
@@ -89,8 +91,8 @@
       "solver": "Two-Stage tSB",
       "raw_energy": -27.6,
       "constraint_violations": 0,
-      "repaired_rmsd_A": 1.938,
-      "rmsd_under_2A_success": true,
+      "repaired_rmsd_A": 2.686,
+      "rmsd_under_2A_success": false,
       "repaired_bits": [
         0,
         1,
@@ -112,7 +114,7 @@
       "solver": "Exact (Brute Force)",
       "energy": -28.099999999999994,
       "qubo_e": -78.1,
-      "wall_s": 0.3966374999999971,
+      "wall_s": 0.3330489999998463,
       "best_bits": [
         1.0,
         0.0,
@@ -128,12 +130,12 @@
         0.0
       ],
       "p_success": 1.0,
-      "tts_99": 0.3966374999999971
+      "tts_99": 0.3330489999998463
     },
     {
       "solver": "TApSA",
       "energy": -28.099998474121094,
-      "wall_s": 0.15587395000000015,
+      "wall_s": 0.1890792499998497,
       "best_bits": [
         1.0,
         0.0,
@@ -149,12 +151,12 @@
         0.0
       ],
       "p_success": 0.6,
-      "tts_99": 0.7834042649803715
+      "tts_99": 0.9502902240507284
     },
     {
       "solver": "SpSA",
       "energy": -28.099998474121094,
-      "wall_s": 0.16925770000000284,
+      "wall_s": 0.1771715499999118,
       "best_bits": [
         1.0,
         0.0,
@@ -170,12 +172,12 @@
         0.0
       ],
       "p_success": 0.3,
-      "tts_99": 2.1853525935447284
+      "tts_99": 2.2875314168551286
     },
     {
       "solver": "Two-Stage tSB",
       "energy": -27.599998474121094,
-      "wall_s": 0.37557524999999714,
+      "wall_s": 0.5164964000000509,
       "best_bits": [
         0.0,
         1.0,
@@ -191,7 +193,7 @@
         0.0
       ],
       "p_success": 1.0,
-      "tts_99": 0.37557524999999714
+      "tts_99": 0.5164964000000509
     }
   ]
 }

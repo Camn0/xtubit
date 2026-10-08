@@ -10,6 +10,6 @@ TAM12,CCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.29,uM,6.5376,Aggarwal_2017,Pks13-
 TAM13,COCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.17,uM,6.7696,Aggarwal_2017,Pks13-TE enzymatic IC50
 TAM14,CCc1oc2ccccc2c1-c3cc(c(o3)C)C(=O)O,35.8,uM,4.4461,Aggarwal_2017,Pks13-TE enzymatic IC50
 TAM15,CN(C)CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,2.0,uM,5.6990,Aggarwal_2017,Pks13-TE enzymatic IC50
-TAM16,CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.19,uM,6.7212,Aggarwal_2017,Pks13-TE enzymatic IC50
+TAM16,CNC(=O)c1c(-c2ccc(O)cc2)oc2ccc(O)c(CN3CCCCC3)c12,0.19,uM,6.7212,Aggarwal_2017,Pks13-TE enzymatic IC50
 TAM17,OCCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23,0.36,uM,6.4437,Aggarwal_2017,Pks13-TE enzymatic IC50
 X20403,O=C(NCc1cccs1)c2c(C)oc(c2)c3c(CC)oc4ccccc34,0.057,uM,7.2430,Krieger_2024,Pks13-TE enzymatic IC50

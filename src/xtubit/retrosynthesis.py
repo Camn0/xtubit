@@ -132,12 +132,8 @@ def estimate_synthetic_complexity(mol: Chem.Mol) -> float:
     return float(np.clip(round(final_sc, 2), 1.0, 5.0))
 
 
-# Alias for backwards compatibility with earlier module naming
-calculate_scscore = estimate_synthetic_complexity
-
-
-
 # SMARTS definitions for key strategic medicinal chemistry disconnections
+
 AMIDE_SMARTS = Chem.MolFromSmarts("[CX3](=[OX1])[NX3H,NX3]")
 SULFONAMIDE_SMARTS = Chem.MolFromSmarts("[SX4](=[OX1])(=[OX1])[NX3]")
 ESTER_SMARTS = Chem.MolFromSmarts("[CX3](=[OX1])[OX2H0]")

@@ -56,7 +56,7 @@ def sa_score(mol, allow_fallback: bool = False):
 def featurize(mol, mol_id: str, source: str = "", allow_sa_fallback: bool = True):
     from .medchem_filters import evaluate_medchem_cleanliness
     from .admet_predictors import predict_admet_profile
-    from .retrosynthesis import calculate_scscore, estimate_synthetic_route
+    from .retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
     smi = Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
     clean_info = evaluate_medchem_cleanliness(mol)
     admet_info = predict_admet_profile(mol)
@@ -68,7 +68,8 @@ def featurize(mol, mol_id: str, source: str = "", allow_sa_fallback: bool = True
         "scaffold": MurckoScaffold.MurckoScaffoldSmiles(mol=mol),
         "qed": float(QED.qed(mol)),
         "sa": float(sa_score(mol, allow_fallback=allow_sa_fallback)),
-        "scscore": float(calculate_scscore(mol)),
+        "scscore": float(estimate_synthetic_complexity(mol)),
+
         "synth_steps": int(route_info["num_steps"]),
         "synth_tractable": bool(route_info["is_synthetically_tractable"]),
         "synth_reaction": str(route_info["primary_reaction"]),

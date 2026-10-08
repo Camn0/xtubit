@@ -1,6 +1,6 @@
 from rdkit import Chem
 from xtubit.retrosynthesis import (
-    calculate_scscore,
+    estimate_synthetic_complexity,
     estimate_synthetic_route,
     update_qpmhi_with_scscore,
 )
@@ -9,14 +9,14 @@ from xtubit.retrosynthesis import (
 def test_scscore_calibration_hierarchy():
     """Verify SCScore properly ranks compounds from simple starting materials to complex polycycles."""
     bz = Chem.MolFromSmiles("c1ccccc1")
-    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
+    tam16 = Chem.MolFromSmiles("CNC(=O)c1c(-c2ccc(O)cc2)oc2ccc(O)c(CN3CCCCC3)c12")
     taxol = Chem.MolFromSmiles(
         "CC(=O)OC1C(=O)C2(C)C(O)CC3OCC3(OC(=O)C)C2C(OC(=O)c4ccccc4)C(O)(C1(C)C)CC(NC(=O)c5ccccc5)C(O)c6ccccc6"
     )
 
-    sc_bz = calculate_scscore(bz)
-    sc_tam16 = calculate_scscore(tam16)
-    sc_taxol = calculate_scscore(taxol)
+    sc_bz = estimate_synthetic_complexity(bz)
+    sc_tam16 = estimate_synthetic_complexity(tam16)
+    sc_taxol = estimate_synthetic_complexity(taxol)
 
     # 1. Hierarchy: Simple < Clinical Lead < Complex Natural Product
     assert 1.0 <= sc_bz <= 1.8, f"Benzene SCScore {sc_bz} out of expected [1.0, 1.8] range"
@@ -27,13 +27,14 @@ def test_scscore_calibration_hierarchy():
 
 def test_tam16_three_step_synthesis_benchmark():
     """Verify TAM16 retrosynthetic route recapitulates published 3-step synthesis (Aggarwal et al. 2017)."""
-    tam16 = Chem.MolFromSmiles("CCOC(=O)c1c(C)oc(c1)c2c(CC)oc3ccccc23")
+    tam16 = Chem.MolFromSmiles("CNC(=O)c1c(-c2ccc(O)cc2)oc2ccc(O)c(CN3CCCCC3)c12")
     route = estimate_synthetic_route(tam16)
 
     assert route["num_steps"] == 3, f"Expected 3 synthetic steps for TAM16, got {route['num_steps']}"
     assert route["is_synthetically_tractable"] is True
     assert route["building_blocks_available"] is True
     assert any("Suzuki-Miyaura" in rxn for rxn in route["reactions"]), "Suzuki-Miyaura coupling not identified in TAM16 route"
+
 
 
 

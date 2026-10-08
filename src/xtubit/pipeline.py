@@ -198,21 +198,42 @@ def run_stage_b5(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     return df_out
 
 
-def run_stage_b6_b7(out_dir: Path) -> Dict[str, Any]:
+def run_stage_b6_b7(
+    out_dir: Path,
+    candidate_smiles: Optional[str] = None,
+    candidate_mol_id: str = "TAM16"
+) -> Dict[str, Any]:
     """Stage B6/B7: Pocket candidate placements and Yanagisawa 4-term QUBO/Ising assembly."""
-    logger.info("Executing Stage B6/B7: Pocket placement and Yanagisawa Hamiltonian formulation...")
-    # Simulated pharmacophore fragments for TAM16 lead (PDB 5V3Y pocket)
+    logger.info("Executing Stage B6/B7: Pocket placement and Yanagisawa Hamiltonian formulation for %s...", candidate_mol_id)
+    # Pharmacophore fragments for lead (PDB 5V3Y pocket)
     # 4 fragments, each with 3 candidate grid placements = N = 12 binary variables
     n_vars = 12
     fragment_id = torch.tensor([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3], dtype=torch.long)
     torch.manual_seed(7)
 
+    from .b6_pairs import PKS13_SUBPOCKETS
+    subpocket_centers = [
+        PKS13_SUBPOCKETS["Anchor"]["center"],
+        PKS13_SUBPOCKETS["Linker"]["center"],
+        PKS13_SUBPOCKETS["Tunnel"]["center"],
+        PKS13_SUBPOCKETS["P1_Cap"]["center"],
+    ]
+    coords_list = []
+    rng = np.random.RandomState(7)
+    placement_ids = []
+    for f_idx, center in enumerate(subpocket_centers):
+        for p_idx in range(3):
+            displacement = rng.normal(0.0, 0.25, size=3)
+            coords_list.append(center + displacement)
+            placement_ids.append(f"F{f_idx}_P{p_idx}")
+    coords = torch.tensor(np.array(coords_list), dtype=torch.float64)
+
     # Local binding affinity dG for each placement pose (kcal/mol)
     dG = torch.tensor([
         -8.5, -7.8, -6.9,  # Fragment 0 (benzofuran core)
-        -4.2, -4.0, -3.5,  # Fragment 1 (furan ester)
-        -3.1, -2.8, -2.5,  # Fragment 2 (ethyl substituent)
-        -2.5, -2.2, -1.9   # Fragment 3 (methyl branch)
+        -4.2, -4.0, -3.5,  # Fragment 1 (furan ester / amide bridge)
+        -3.1, -2.8, -2.5,  # Fragment 2 (alkyl substituent / tunnel)
+        -2.5, -2.2, -1.9   # Fragment 3 (methyl / cap branch)
     ], dtype=torch.float64)
 
     # Inter-fragment steric clash matrix (1 if steric clash, 0 otherwise)
@@ -227,7 +248,11 @@ def run_stage_b6_b7(out_dir: Path) -> Dict[str, Any]:
     conn[3, 6] = conn[6, 3] = -1.0
     conn[6, 9] = conn[9, 6] = -1.0
 
-    bundle = build_yanagisawa_qubo(dG, clash, conn, fragment_id, A=1.0, B=5.0, C=5.0, D=25.0)
+    bundle = build_yanagisawa_qubo(
+        dG, clash, conn, fragment_id,
+        A=1.0, B=5.0, C=5.0, D=25.0,
+        placement_ids=placement_ids
+    )
     validation = validate_qubo(bundle, equivalence_trials=500, atol=1e-8)
     logger.info("Stage B7 validation: max equivalence error = %.2e (passed=%s)",
                 validation["max_equivalence_error"], validation["passed"])
@@ -242,11 +267,18 @@ def run_stage_b6_b7(out_dir: Path) -> Dict[str, Any]:
         "c0": c0,
         "dG": dG,
         "fragment_id": fragment_id,
+        "coords": coords,
+        "variable_map": bundle.variable_map,
+        "placement_ids": placement_ids,
         "onehot_constant": bundle.onehot_constant,
+        "poses_per_subpocket": 3,
+        "candidate_smiles": candidate_smiles,
+        "candidate_mol_id": candidate_mol_id,
     }
     torch.save(bundle_data, qubo_dir / "tam16_qubo.pt")
     logger.info("Stage B6/B7 complete: QUBO and Ising matrices saved to %s", qubo_dir / "tam16_qubo.pt")
     return bundle_data
+
 
 
 def run_stage_b8(bundle_data: Dict[str, Any], out_dir: Path) -> List[Dict[str, Any]]:
@@ -330,6 +362,9 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
     fragment_id = bundle_data["fragment_id"].tolist()
     dG = bundle_data["dG"].tolist()
     coords = bundle_data.get("coords")
+    candidate_smiles = bundle_data.get("candidate_smiles")
+    candidate_mol_id = bundle_data.get("candidate_mol_id", "TAM16")
+    poses_per_subpocket = bundle_data.get("poses_per_subpocket", 3)
 
     groups = []
     unique_frags = sorted(list(set(fragment_id)))
@@ -355,13 +390,14 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
         # 3D structure reconstruction from decoded fragment placement coordinates
         decoded = decode_bitstring_to_subpockets(
             [int(b) for b in repaired_bits.tolist()],
-            poses_per_subpocket=bundle_data.get("poses_per_subpocket", 10),
+            poses_per_subpocket=poses_per_subpocket,
             n_subpockets=len(unique_frags)
         )
         stitched_mol = stitch_fragments_to_molecule(
             decoded,
             variable_coords=coords,
-            poses_per_subpocket=bundle_data.get("poses_per_subpocket", 10)
+            poses_per_subpocket=poses_per_subpocket,
+            candidate_smiles=candidate_smiles,
         )
         relaxed_res = minimize_ligand_in_pocket(stitched_mol, max_steps=50)
 
@@ -386,8 +422,10 @@ def run_stage_b9(bundle_data: Dict[str, Any], solver_results: List[Dict[str, Any
     summary = {
         "status": "COMPLETED",
         "reference_pdb": "5V3Y",
+        "reference_ligand_id": "5V8",
         "reference_resolution_A": 1.98,
-        "lead_compound": "TAM16",
+        "lead_compound": candidate_mol_id,
+        "candidate_smiles": candidate_smiles,
         "total_qubo_variables": len(fragment_id),
         "best_solver": best_overall_solver,
         "heavy_atom_rmsd_A": best_overall_rmsd,
@@ -427,15 +465,19 @@ def run_pipeline(raw_csv: str = "data/raw/pks13_compounds.csv", out_dir: str = "
 
     # Stage B5
     selected_df = run_stage_b5(bayes_df, out_path)
+    top_lead = selected_df.iloc[0] if len(selected_df) > 0 else None
+    lead_smi = str(top_lead["smiles_can"]) if top_lead is not None else None
+    lead_id = str(top_lead["mol_id"]) if top_lead is not None else "TAM16"
 
     # Stage B6/B7
-    bundle_data = run_stage_b6_b7(out_path)
+    bundle_data = run_stage_b6_b7(out_path, candidate_smiles=lead_smi, candidate_mol_id=lead_id)
 
     # Stage B8
     solver_results = run_stage_b8(bundle_data, out_path)
 
     # Stage B9
     summary = run_stage_b9(bundle_data, solver_results, out_path)
+
 
     total_time = time.perf_counter() - start_time
     summary["pipeline_wall_time_s"] = total_time

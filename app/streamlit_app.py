@@ -402,12 +402,13 @@ def evaluate_single_smiles(smiles: str, mol_id: str = "CUSTOM") -> Optional[Dict
 
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
         from xtubit.admet_predictors import predict_admet_profile
-        from xtubit.retrosynthesis import calculate_scscore, estimate_synthetic_route
+        from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
 
         med_clean = evaluate_medchem_cleanliness(mol)
         admet_prof = predict_admet_profile(mol)
-        scscore_v = calculate_scscore(mol)
+        scscore_v = estimate_synthetic_complexity(mol)
         route_v = estimate_synthetic_route(mol)
+
 
         return {
             "mol_id": mol_id,
@@ -801,7 +802,7 @@ with st.sidebar:
         from rdkit import Chem
         from xtubit.admet_predictors import predict_delaney_esol, predict_herg_liability, predict_microsomal_stability
         from xtubit.medchem_filters import evaluate_medchem_cleanliness
-        from xtubit.retrosynthesis import calculate_scscore, estimate_synthetic_route
+        from xtubit.retrosynthesis import estimate_synthetic_complexity, estimate_synthetic_route
 
         def compute_row_admet(smi):
             m = Chem.MolFromSmiles(smi) if smi else None
@@ -811,7 +812,8 @@ with st.sidebar:
             hg = predict_herg_liability(m)
             mc = predict_microsomal_stability(m)
             cl = evaluate_medchem_cleanliness(m)
-            sc = calculate_scscore(m)
+            sc = estimate_synthetic_complexity(m)
+
             rt = estimate_synthetic_route(m)
             return (
                 es["logs"], es["solubility_uM"], es["solubility_class"],

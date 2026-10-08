@@ -42,9 +42,10 @@ def test_stitch_fragments_valency_and_aromaticity():
     assert mol is not None
     assert mol.GetNumConformers() >= 1
 
-    # 2. Heavy atom count (True TAM16 has exactly 22 heavy atoms: C20H20O4 core)
+    # 2. Heavy atom count (Authentic TAM16 / 5V8 in PDB 5V3Y has exactly 28 heavy atoms: C22H24N2O4)
     mol_no_h = Chem.RemoveHs(mol)
-    assert mol_no_h.GetNumHeavyAtoms() == 22, f"Expected 22 heavy atoms for TAM16, got {mol_no_h.GetNumHeavyAtoms()}"
+    assert mol_no_h.GetNumHeavyAtoms() == 28, f"Expected 28 heavy atoms for TAM16, got {mol_no_h.GetNumHeavyAtoms()}"
+
 
     # 3. Valency & aromaticity check
     sanitized = Chem.SanitizeMol(mol_no_h, catchErrors=True)
@@ -107,3 +108,63 @@ def test_stitch_candidate_independence():
 
     assert smi_a != smi_b, "Candidate A and B must not produce identical molecular topologies"
     assert mol_a.GetNumHeavyAtoms() != mol_b.GetNumHeavyAtoms()
+
+
+def test_pdb_reference_identity():
+    """Verify authentic PDB 5V3Y crystal ligand matches 5V8 identity (28 heavy atoms, C22H24N2O4)."""
+    from pathlib import Path
+    import yaml
+    from rdkit.Chem import rdMolDescriptors
+
+    sdf_path = Path("data/raw/5v3y_ligand.sdf")
+    assert sdf_path.exists(), "PDB 5V3Y crystal ligand SDF must exist"
+
+    suppl = Chem.SDMolSupplier(str(sdf_path))
+    assert len(suppl) > 0 and suppl[0] is not None
+    ref_mol = suppl[0]
+
+    # Verify chemical identity against RCSB entry 5V8
+    assert ref_mol.GetNumHeavyAtoms() == 28, f"Expected 28 heavy atoms, got {ref_mol.GetNumHeavyAtoms()}"
+    formula = rdMolDescriptors.CalcMolFormula(ref_mol)
+    assert formula == "C22H24N2O4", f"Expected C22H24N2O4 formula for 5V8, got {formula}"
+    inchikey = Chem.MolToInchiKey(ref_mol)
+    assert inchikey == "PQGCMFVNJWTUFH-UHFFFAOYSA-N", f"Unexpected InChIKey: {inchikey}"
+
+
+def test_reference_compound_registry_matches_pdb():
+    """Verify reference_compounds.yaml matches authentic crystallographic coordinates."""
+    from pathlib import Path
+    import yaml
+
+    yaml_path = Path("data/raw/reference_compounds.yaml")
+    assert yaml_path.exists(), "reference_compounds.yaml must exist"
+
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        registry = yaml.safe_load(f)
+
+    assert "TAM16" in registry
+    tam16 = registry["TAM16"]
+    assert tam16["pdb_ligand_id"] == "5V8"
+    assert tam16["pdb_target"] == "5V3Y"
+    assert tam16["inchikey"] == "PQGCMFVNJWTUFH-UHFFFAOYSA-N"
+    assert tam16["num_heavy_atoms"] == 28
+    assert tam16["formula"] == "C22H24N2O4"
+
+
+def test_candidate_reaches_physics():
+    """Verify candidate SMILES and placement coordinates propagate into reconstructed 3D pose."""
+    decoded = {0: 1, 1: 0, 2: 2, 3: 0, 4: 1, 5: 0}
+    test_coords = torch.ones((60, 3), dtype=torch.float64) * 15.0
+
+    cand_smi = "O=C(NCc1cccs1)c2c(C)oc(c2)c3c(CC)oc4ccccc34"  # X20403
+    mol_custom = stitch_fragments_to_molecule(
+        decoded,
+        variable_coords=test_coords,
+        candidate_smiles=cand_smi,
+    )
+    assert mol_custom.GetNumHeavyAtoms() == 26
+    # Centroid shifted towards test_coords
+    conf = mol_custom.GetConformer()
+    centroid = np.mean([list(conf.GetAtomPosition(i)) for i in range(26)], axis=0)
+    assert np.all(np.abs(centroid) > 5.0), "Conformer should be placed near test_coords"
+
