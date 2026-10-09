@@ -278,12 +278,30 @@ def minimize_ligand_in_pocket(
     }
 
 
+# Crystallographic pocket C-alpha superposition matrices (46 matched pocket residues within 10 A of ligand)
+POCKET_CA_TRANSFORMS: Dict[Tuple[str, str], Tuple[np.ndarray, np.ndarray]] = {
+    ("5V3Y", "8TQV"): (
+        np.array([[0.84793538, 0.14625857, 0.50952334],
+                  [-0.27233678, -0.70444837, 0.65542748],
+                  [0.45479477, -0.69452209, -0.55749510]]),
+        np.array([-20.03731287, 2.24694186, 38.33278594])
+    ),
+    ("8TQV", "5V3Y"): (
+        np.array([[0.84793538, -0.27233678, 0.45479477],
+                  [0.14625857, -0.70444837, -0.69452209],
+                  [0.50952334, 0.65542748, -0.55749510]]),
+        np.array([0.16872084, 31.13644967, 30.10711158])
+    ),
+}
+
+
 def compute_crystal_rmsd(
     pred_mol: Chem.Mol,
     ref_mol: Optional[Chem.Mol] = None,
     ref_pdb: Optional[str] = None,
     align_conformer: bool = True,
     receptor_offset: Optional[np.ndarray] = None,
+    receptor_transform: Optional[Tuple[np.ndarray, np.ndarray]] = None,
 ) -> float:
     """Compute heavy-atom root mean square deviation (RMSD) vs authentic crystallographic ground truth.
 
@@ -298,6 +316,7 @@ def compute_crystal_rmsd(
     - align_conformer: If True, computes internal dihedral conformer RMSD via optimal 3D rigid-body alignment
       (Kabsch algorithm / GetBestRMS). If False, evaluates the in-pocket Cartesian RMSD without aligning.
     - receptor_offset: Optional translation vector applied to transform pred_mol into the reference receptor frame.
+    - receptor_transform: Optional (R, t) Kabsch rotation & translation aligning receptor pocket frames.
     """
     from pathlib import Path
     from rdkit.Chem import rdFMCS
@@ -332,7 +351,10 @@ def compute_crystal_rmsd(
     if not align_conformer:
         # Direct in-pocket Cartesian heavy-atom RMSD without ligand superposition
         c1 = pred_clean.GetConformer().GetPositions().copy()
-        if receptor_offset is not None:
+        if receptor_transform is not None:
+            R, t = receptor_transform
+            c1 = c1 @ np.asarray(R).T + np.asarray(t)
+        elif receptor_offset is not None:
             c1 = c1 + np.asarray(receptor_offset)
         c2 = ref_clean.GetConformer().GetPositions()
 
@@ -341,6 +363,21 @@ def compute_crystal_rmsd(
             c1_matched = c1[list(match)]
             cart_rmsd = float(np.sqrt(np.mean(np.sum((c1_matched - c2) ** 2, axis=1))))
             return round(cart_rmsd, 3)
+
+        # Cross-ligand MCS mapping on common core atoms
+        try:
+            res = rdFMCS.FindMCS([pred_clean, ref_clean], timeout=5)
+            if res.numAtoms >= 4:
+                mcs_mol = Chem.MolFromSmarts(res.smartsString)
+                match_pred = pred_clean.GetSubstructMatch(mcs_mol)
+                match_ref = ref_clean.GetSubstructMatch(mcs_mol)
+                if len(match_pred) >= 4 and len(match_ref) >= 4:
+                    c1_m = c1[list(match_pred)]
+                    c2_m = c2[list(match_ref)]
+                    cart_rmsd = float(np.sqrt(np.mean(np.sum((c1_m - c2_m) ** 2, axis=1))))
+                    return round(cart_rmsd, 3)
+        except Exception:
+            pass
 
         min_len = min(len(c1), len(c2))
         cart_rmsd = float(np.sqrt(np.mean(np.sum((c1[:min_len] - c2[:min_len]) ** 2, axis=1))))
@@ -381,14 +418,19 @@ def compute_crystal_rmsd_detailed(
     ref_mol: Optional[Chem.Mol] = None,
     ref_pdb: Optional[str] = None,
     receptor_offset: Optional[np.ndarray] = None,
+    receptor_transform: Optional[Tuple[np.ndarray, np.ndarray]] = None,
 ) -> Dict[str, float]:
     """Compute both conformer-aligned RMSD and pocket Cartesian RMSD against crystallographic ground truth."""
     rmsd_aligned = compute_crystal_rmsd(pred_mol, ref_mol=ref_mol, ref_pdb=ref_pdb, align_conformer=True)
-    rmsd_pocket = compute_crystal_rmsd(pred_mol, ref_mol=ref_mol, ref_pdb=ref_pdb, align_conformer=False, receptor_offset=receptor_offset)
+    rmsd_pocket = compute_crystal_rmsd(
+        pred_mol, ref_mol=ref_mol, ref_pdb=ref_pdb, align_conformer=False,
+        receptor_offset=receptor_offset, receptor_transform=receptor_transform
+    )
     return {
         "conformer_aligned_rmsd_A": rmsd_aligned,
         "in_pocket_cartesian_rmsd_A": rmsd_pocket,
     }
+
 
 
 

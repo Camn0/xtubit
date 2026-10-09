@@ -1,4 +1,9 @@
 from __future__ import annotations
+"""External configuration adapter for the Akiyama Lab REstretto fragment placement engine.
+
+Constructs and exports INI-style grid and cavity search configurations. Does not execute
+the external C++/OpenBabel REstretto binary directly.
+"""
 from pathlib import Path
 from dataclasses import dataclass
 

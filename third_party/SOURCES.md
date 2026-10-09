@@ -11,7 +11,7 @@ Use the clone script to retrieve these projects. Do not copy the full third-part
 | qPMHI | https://github.com/PaulsonLab/Generative_MOBO_qPMHI | official qPMHI acquisition implementation | adapter / audit source |
 | FAENet | https://github.com/vict0rsch/faenet | 3D frame averaging and graph embedding | adapter |
 | OCP training code | https://github.com/RolnickLab/ocp | FAENet training examples | reference |
-| REstretto | https://github.com/akiyamalab/restretto | fragment placement/docking engine | executable |
+| REstretto | https://github.com/akiyamalab/restretto | fragment placement/docking engine | external configuration adapter |
 | COFFEE-PRESC | https://github.com/akiyamalab/coffee-presc | fragment decomposition/docking auxiliary | optional |
 | Pi-Stacking | https://github.com/alebeneventi/Pi-Stacking | alternate QUBO docking reference | optional |
 | PyQUBO | https://github.com/recruit-communications/pyqubo | symbolic QUBO/Ising compilation and constraint tracking | adapter / validation reference |

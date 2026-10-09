@@ -192,9 +192,10 @@ def run_stage_b5(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
 
     Y = np.column_stack([mu, qed, sa_inv])
     front = pareto_front(Y)
-    ref = np.array([mu.min() - 0.5, 0.0, 0.0])
+    from .qpmhi import FROZEN_CALIBRATION_REFERENCE_POINT
+    ref = FROZEN_CALIBRATION_REFERENCE_POINT
 
-    scores = qpmhi_scores(mu, sigma, qed, sa_inv, front, ref, samples=256, seed=7)
+    scores = qpmhi_scores(mu, sigma, qed, sa_inv, front, ref=ref, samples=256, seed=7)
     df_out = df.copy()
     df_out["qpmhi_score"] = scores
     df_out["sa_inv"] = sa_inv
@@ -498,19 +499,29 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
         )
         relaxed = minimize_ligand_in_pocket(stitched, max_steps=40)
 
-        # Coordinate transformation offset for cross-receptor frames
-        if exp["receptor"] == "8TQV" and exp["ref_pdb"] == "5V3Y":
-            trans_offset = -ref_offset_8tqv
-        elif exp["receptor"] == "5V3Y" and exp["ref_pdb"] == "8TQV":
-            trans_offset = ref_offset_8tqv
-        else:
-            trans_offset = None
+        from .post_anneal import POCKET_CA_TRANSFORMS
+        # Exact pocket C-alpha Kabsch transformation for cross-receptor frames
+        trans_transform = POCKET_CA_TRANSFORMS.get((exp["receptor"], exp["ref_pdb"]))
 
+        # Pre-closure RMSD on stitched unrelaxed geometry
+        rmsd_pre = compute_crystal_rmsd_detailed(
+            stitched,
+            ref_pdb=exp["ref_pdb"],
+            receptor_transform=trans_transform
+        )
+
+        # Post-closure RMSD on relaxed geometry
         rmsd_dict = compute_crystal_rmsd_detailed(
             relaxed["minimized_mol"],
             ref_pdb=exp["ref_pdb"],
-            receptor_offset=trans_offset
+            receptor_transform=trans_transform
         )
+
+        # Parent purity of selected solution
+        var_meta = qubo_data.get("variable_meta", [])
+        selected_vars = [p_id * 3 + p_pose for p_id, p_pose in decoded.items()]
+        selected_parents = {var_meta[v]["parent_id"] for v in selected_vars if v < len(var_meta)}
+        parent_purity = round(1.0 / max(1, len(selected_parents)), 3)
 
         # Evaluate physical protein pocket contacts and clashes
         pocket_atoms = load_receptor_pocket_atoms(exp["receptor"])
@@ -538,14 +549,20 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
             "ligand_strain_energy_kcal_mol": relaxed["ligand_strain_energy_kcal_mol"],
             "minimized_energy_kcal_mol": relaxed["minimized_energy_kcal_mol"],
             "energy_type": "Ligand Intramolecular Strain (MMFF94)",
+            "closure_shift_A": relaxed.get("closure_shift", 0.0),
+            "parent_purity": parent_purity,
+            "rmsd_pre_closure_conformer_A": rmsd_pre["conformer_aligned_rmsd_A"],
+            "rmsd_pre_closure_pocket_A": rmsd_pre["in_pocket_cartesian_rmsd_A"],
             "conformer_aligned_rmsd_A": rmsd_dict["conformer_aligned_rmsd_A"],
             "in_pocket_cartesian_rmsd_A": rmsd_dict["in_pocket_cartesian_rmsd_A"],
             "heavy_atom_rmsd_A": rmsd_dict["conformer_aligned_rmsd_A"],
-            "success_under_2A": bool(rmsd_dict["conformer_aligned_rmsd_A"] < 2.0),
+            "success_under_2A": bool(rmsd_dict["in_pocket_cartesian_rmsd_A"] < 2.0),
         })
-        logger.info("%s: QUBO E=%.2f, Contact dG=%.2f, Clashes=%d, Aligned RMSD=%.2f A, Pocket RMSD=%.2f A",
+        logger.info("%s: QUBO E=%.2f, Contact dG=%.2f, Clashes=%d, Aligned RMSD=%.2f A, Pocket RMSD=%.2f A (pre=%.2f A, purity=%.2f)",
                     exp["name"], float(e_exact), contact_dG, clashes,
-                    rmsd_dict["conformer_aligned_rmsd_A"], rmsd_dict["in_pocket_cartesian_rmsd_A"])
+                    rmsd_dict["conformer_aligned_rmsd_A"], rmsd_dict["in_pocket_cartesian_rmsd_A"],
+                    rmsd_pre["in_pocket_cartesian_rmsd_A"], parent_purity)
+
 
     cross_data = {
         "status": "COMPLETED",

@@ -53,13 +53,18 @@ def hypervolume(Y: np.ndarray, ref: np.ndarray):
     return hv(Y, ref)
 
 
+# Frozen calibration reference point established on Pks13 training distribution (min pIC50 - 0.5 ~ 4.0, QED=0, SA_inv=0)
+# Frozen to prevent candidate pool data leakage / ranking shifts during blind evaluation
+FROZEN_CALIBRATION_REFERENCE_POINT: np.ndarray = np.array([4.0, 0.0, 0.0])
+
+
 def qpmhi_scores(
     mu,
     sigma,
     qed,
     sa_inv,
     front,
-    ref,
+    ref=None,
     samples=512,
     seed=7,
     scscore=None,
@@ -68,10 +73,13 @@ def qpmhi_scores(
 ):
     """Compute qPMHI acquisition probabilities over Pareto front.
     
+    Uses pre-registered frozen calibration reference point by default to prevent evaluation data leakage.
     Optionally incorporates Coley et al. SCScore and forward synthetic step constraints:
     - Blends Ertl SA with SCScore when scscore is provided.
     - Applies step penalty to candidates requiring > max_steps.
     """
+    if ref is None:
+        ref = FROZEN_CALIBRATION_REFERENCE_POINT
     rng = np.random.default_rng(seed)
     mu = np.asarray(mu, float)
     sigma = np.maximum(np.asarray(sigma, float), 1e-8)

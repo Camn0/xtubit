@@ -93,9 +93,9 @@ flowchart TD
         direction TB
         B1["<b>B1: Data Curation & Standardization</b><br/>Bioactivity Manifests, QED/SA Filtering, SELFIES"]:::paperNode
         B2["<b>B2: 3D Conformer Generation</b><br/>RDKit ETKDGv3, MMFF94 Lowest-Energy Selection"]:::paperNode
-        B3["<b>B3: Geometric Feature Extraction</b><br/>FAENet E(3) Stochastic Frame Averaging"]:::paperNode
-        B4["<b>B4: Bayesian Affinity Predictor</b><br/>Bayesian GNN Epistemic Posterior (mu, sigma)"]:::paperNode
-        B5["<b>B5: Multi-Objective Active Selection</b><br/>qPMHI Monte Carlo Pareto Acquisition (top-q)"]:::paperKey
+        B3["<b>B3: Descriptor Surrogate / Feature Extraction</b><br/>Calibrated 7-Descriptor Surrogate (Production) / FAENet Adapter (Experimental)"]:::paperNode
+        B4["<b>B4: Bayesian Affinity Predictor</b><br/>Variational Epistemic Posterior (mu, sigma) [GNN Fails Closed without PyG]"]:::paperNode
+        B5["<b>B5: Multi-Objective Active Selection</b><br/>qPMHI Monte Carlo Pareto Acquisition with Frozen Calibration Reference Point"]:::paperKey
 
         B1 --> B2
         B2 --> B3
@@ -105,7 +105,7 @@ flowchart TD
 
     subgraph Plane2["PLANE 2: COMBINATORIAL DOCKING AND DIGITAL TWIN"]
         direction TB
-        B6["<b>B6: Pocket Decomposition & Placements</b><br/>BRICS Cavity Grids (PDB 5V3Y), REstretto Rigid Poses"]:::paperNode
+        B6["<b>B6: Pocket Decomposition & Placements</b><br/>BRICS Tree Cleavage, Conformer-Coherent Placements, Optional REstretto Config Adapter"]:::paperNode
         B7["<b>B7: QUBO Formulation & Ising Mapping</b><br/>Yanagisawa 4-Term Matrix Q to Ising (J, h, c0)"]:::paperNode
 
         subgraph Solvers["HARDWARE DIGITAL TWIN COMBINATORIAL SOLVERS"]
@@ -144,16 +144,20 @@ To ensure robust deployment across varied environments, the codebase isolates ru
 
 All command-line interfaces use lazy imports so that dependencies in one domain do not impede work in another.
 
+> [!NOTE]
+> **Scientific Role of ML Surrogate (B3–B5)**:
+> In the active production pipeline, bioactivity prediction is served by a calibrated 7-descriptor variational Bayesian surrogate (`BayesianLinear(7 -> 32 -> 1)`), providing fast epistemic uncertainty estimates for multi-objective qPMHI acquisition. The 3D FAENet adapter ([`b3_faenet_adapter.py`](src/xtubit/b3_faenet_adapter.py)) and PyTorch Geometric GINEConv Bayesian GNN ([`b4_bayesian_gnn.py`](src/xtubit/b4_bayesian_gnn.py)) are standalone research modules that fail closed if PyTorch Geometric is not installed, reserved for expanded multi-scaffold datasets ($N \gg 13$). The qPMHI acquisition module uses a frozen reference point calibrated on the training distribution to eliminate ranking drift during blind evaluation.
+
 ### Module Breakdown
 
 | Block | Name | Input | Primary Tool / Model | Artifact Output | File Reference |
 | :---: | :--- | :--- | :--- | :--- | :--- |
 | **B1** | **Data Curation** | Raw SMILES, Bioactivity tables | RDKit, MolVS, SELFIES | Canonical SMILES, QED, SA scores, scaffold splits | [`b1_data.py`](src/xtubit/b1_data.py) |
 | **B2** | **Conformer Gen** | Canonical SMILES | RDKit ETKDGv3, MMFF94 | 3D SDF coordinates, molecular adjacency graphs | [`b2_conformer.py`](src/xtubit/b2_conformer.py) |
-| **B3** | **FAENet Embedding** | 3D Graph coordinates | PyTorch Geometric, FAENet | Invariant per-atom latent vectors ($E(3)$-averaged) | [`b3_faenet_adapter.py`](src/xtubit/b3_faenet_adapter.py) |
-| **B4** | **Bayesian GNN** | FAENet embeddings + Graph | Monte Carlo Dropout / Bayes layers | Target affinity predictions $\mu$ and uncertainty $\sigma$ | [`b4_bayesian_gnn.py`](src/xtubit/b4_bayesian_gnn.py) |
-| **B5** | **qPMHI Selection** | $\mu, \sigma$, QED, SA scores | Monte Carlo acquisition function | Pareto-optimal candidate batch ID subset | [`qpmhi.py`](src/xtubit/qpmhi.py) |
-| **B6** | **Fragment Placements**| Ligand + Pks13-TE cavity | BRICS slicing, REstretto subregions | Placement records $\Delta E_i$, clashes $c_{ij}$, connectivity $b_{ij}$ | [`b6_pairs.py`](src/xtubit/b6_pairs.py) |
+| **B3** | **Descriptor / Embedding** | Physicochemical features or 3D Graph | Calibrated 7-descriptor surrogate (production); FAENet adapter (experimental) | Standardized descriptors, latent invariant vectors | [`b3_faenet_adapter.py`](src/xtubit/b3_faenet_adapter.py) |
+| **B4** | **Bayesian Surrogate** | Descriptors / Graph | Variational Bayesian Linear layers (production); PyG GINEConv (experimental) | Target affinity predictions $\mu$ and uncertainty $\sigma$ | [`b4_bayesian_gnn.py`](src/xtubit/b4_bayesian_gnn.py) |
+| **B5** | **qPMHI Selection** | $\mu, \sigma$, QED, SA scores | Monte Carlo acquisition with frozen calibration reference | Pareto-optimal candidate batch ID subset | [`qpmhi.py`](src/xtubit/qpmhi.py) |
+| **B6** | **Fragment Placements**| Ligand + Pks13 cavity | BRICS tree cuts, conformer-coherent beam search, REstretto config adapter | Placement records $\Delta E_i$, clashes $c_{ij}$, connectivity $b_{ij}$ | [`b6_pairs.py`](src/xtubit/b6_pairs.py) |
 | **B7** | **QUBO / Ising Map** | Placement records, weights | PyTorch, NumPy | Symmetric matrix $Q \in \mathbb{R}^{N \times N}$ and Ising $(J, h, c_0)$ | [`b7_qubo.py`](src/xtubit/b7_qubo.py) |
 | **B8** | **Digital Twin Solver**| Ising $(J, h)$ or QUBO $Q$ | PyTorch (SB, TESB, pSA-PD) | Binary spin solutions $s \in \{-1, +1\}^N$, minimum energy $E$ | [`solvers/`](src/xtubit/solvers/) |
 | **B9** | **Decode & Refine** | Bitstrings, Variable Map, PDB | Constrained MMFF/UFF minimization | Assembled 3D pose, heavy-atom RMSD, TTS, valid ratio | [`b9_metrics.py`](src/xtubit/b9_metrics.py) |

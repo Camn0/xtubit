@@ -3,13 +3,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import itertools
+from collections import defaultdict
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation as Rot
 from rdkit import Chem
 from rdkit.Chem import AllChem, BRICS
+from rdkit.Chem import rdMolTransforms as T
 from .b7_qubo import build_yanagisawa_qubo, validate_qubo, QuboBundle
 from .common.math import qubo_to_ising
+
 
 
 def _set_xyz(mol, xyz):
@@ -337,12 +340,12 @@ def get_receptor_subpocket_centers(
     """
     rec_upper = receptor.upper()
     if "8TQV" in rec_upper:
-        # PDB 8TQV co-crystal JS9 authentic fragment centroids
+        # PDB 8TQV co-crystal JS9 authentic tree fragment centroids
         centers = [
-            np.array([-3.25, -15.79, 11.50]),
-            np.array([-5.00, -11.44, 20.07]),
-            np.array([-8.31, -12.01, 20.06]),
-            np.array([-0.10, -18.60, 5.25]),
+            np.array([-5.26, -15.17, 17.84]),
+            np.array([-1.64, -16.32, 10.80]),
+            np.array([-2.39, -16.40, 4.69]),
+            np.array([-7.58, -11.88, 20.06]),
         ]
     elif "5V40" in rec_upper:
         # PDB 5V40 co-crystal JS1 binding cavity
@@ -361,13 +364,14 @@ def get_receptor_subpocket_centers(
             np.array([-16.60, 6.28, 13.04]),
         ]
     else:
-        # PDB 5V3Y co-crystal 5V8 authentic fragment centroids
+        # PDB 5V3Y co-crystal 5V8 authentic tree fragment centroids
         centers = [
-            np.array([4.04, 24.91, 7.67]),
-            np.array([6.08, 26.62, 6.35]),
-            np.array([6.42, 25.60, 4.64]),
-            np.array([6.08, 30.53, 8.23]),
+            np.array([2.84, 26.80, 8.12]),
+            np.array([5.76, 21.61, 7.16]),
+            np.array([6.25, 26.11, 5.50]),
+            np.array([5.80, 30.32, 8.03]),
         ]
+
     subpocket_names = ["Anchor", "Linker", "Tunnel", "P1_Cap", "Catalytic_Triad", "Solvent_Front"]
     return {
         subpocket_names[i]: centers[i % len(centers)]
@@ -429,13 +433,14 @@ def compute_atom_typed_docking_score(
         clash_pen = float(np.sum(np.maximum(0.0, clash_cutoff - dists) * rep_weight))
         contact_mask = (dists >= clash_cutoff) & (dists <= 5.0)
         attr_well = float(attr_weight * np.sum(np.exp(-0.5 * ((dists[contact_mask] - opt_distance) / 0.6) ** 2)))
+        polar_contact_bonus = 0.0
         total_e = clash_pen + attr_well
 
-    n_atoms = max(1, len(frag_coords))
-    norm_e = (total_e / np.sqrt(n_atoms)) * 1.5
     if soft_clip:
-        return float(np.tanh(norm_e / 8.0) * 8.0)
-    return float(np.clip(norm_e, -9.5, 6.0))
+        # Strictly additive over atoms: attr well + polar bonus + capped clash penalty
+        return float(attr_well + polar_contact_bonus + min(clash_pen, 50.0))
+    return float(total_e)
+
 
 
 def compute_protein_fragment_contact_potential(
@@ -461,92 +466,231 @@ def compute_protein_fragment_contact_potential(
     )
 
 
+def decompose_k_fragments(
+    mol: Chem.Mol,
+    K: int = 4,
+    min_size: int = 3
+) -> Tuple[List[List[int]], List[Tuple[int, int, int, int]]]:
+    """Decompose candidate molecule into K connected fragments forming a connected tree graph.
+    
+    Identifies rotatable acyclic single bonds between degree > 1 atoms (preferring BRICS cuts).
+    Searches combinations of K - 1 cuts ensuring each fragment has >= min_size heavy atoms
+    and balanced fragment sizes.
+    Returns:
+    - atom_groups: list of heavy atom index lists for each of the K fragments.
+    - attachments: list of (u, owner[u], v, owner[v]) across cut bonds.
+    """
+    n_heavy = mol.GetNumHeavyAtoms()
+    if n_heavy <= K:
+        return [[i] for i in range(n_heavy)], []
+
+    brics = {mol.GetBondBetweenAtoms(u, v).GetIdx() for (u, v), _ in BRICS.FindBRICSBonds(mol) if mol.GetBondBetweenAtoms(u, v) is not None}
+    cand = [b.GetIdx() for b in mol.GetBonds()
+            if not b.IsInRing() and b.GetBondType() == Chem.BondType.SINGLE
+            and b.GetBeginAtom().GetDegree() > 1 and b.GetEndAtom().GetDegree() > 1]
+
+    best = None
+    for cut in itertools.combinations(cand, K - 1):
+        frags = Chem.GetMolFrags(Chem.FragmentOnBonds(mol, list(cut), addDummies=False))
+        sizes = [len(f) for f in frags]
+        if len(frags) != K or min(sizes) < min_size:
+            continue
+        cost = float(np.var(sizes)) - 3.0 * len(brics & set(cut))   # balanced + BRICS-preferred
+        if best is None or cost < best[0]:
+            best = (cost, [list(f) for f in frags], cut)
+
+    if best is None:
+        # Fallback if strict min_size cannot be satisfied (e.g. small molecule or limited rotatable bonds)
+        for cut in itertools.combinations(cand, K - 1):
+            frags = Chem.GetMolFrags(Chem.FragmentOnBonds(mol, list(cut), addDummies=False))
+            sizes = [len(f) for f in frags]
+            if len(frags) != K or min(sizes) < 1:
+                continue
+            cost = float(np.var(sizes)) - 3.0 * len(brics & set(cut))
+            if best is None or cost < best[0]:
+                best = (cost, [list(f) for f in frags], cut)
+
+    if best is None:
+        raise ValueError(f"no {K}-fragment tree decomposition for candidate; lower K or inspect molecule")
+
+    _, groups, cut = best
+    owner = {a: k for k, g in enumerate(groups) for a in g}
+    att = []
+    for bi in cut:
+        bd = mol.GetBondWithIdx(bi)
+        u, v = bd.GetBeginAtomIdx(), bd.GetEndAtomIdx()
+        att.append((u, owner[u], v, owner[v]))
+
+    return groups, att
+
+
 def decompose_candidate_to_fragments(
     mol: Chem.Mol,
     n_subpockets: int = 4
 ) -> Tuple[List[List[int]], List[Tuple[int, int, int, int]]]:
-    """Decompose candidate molecule via BRICS and rotatable acyclic bonds into chemical fragments.
-    
-    Preserves all heavy atoms and maintains rigid ring scaffolds as discrete units.
-    Returns:
-    - atom_groups: list of atom index lists for each fragment.
-    - attachments: list of (atom_u, frag_u, atom_v, frag_v) across cut bonds.
+    """Backward-compatible wrapper decomposing candidate molecule into tree fragments.
+    Attempts strict K = n_subpockets decomposition first (min_size=3, then min_size=1).
+    If the molecule does not have enough acyclic rotatable bonds for n_subpockets,
+    adapts K down to the maximum achievable number of tree fragments.
     """
-    n_heavy = mol.GetNumHeavyAtoms()
-    if n_heavy <= n_subpockets:
-        return [[i] for i in range(n_heavy)], []
-
-    # 1. Identify retrosynthetically cleavable BRICS bonds
-    brics_bonds = list(BRICS.FindBRICSBonds(mol))
-    cleave_bonds = []
-    for (u, v), btype in brics_bonds:
-        b = mol.GetBondBetweenAtoms(u, v)
-        if b is not None and not b.IsInRing():
-            cleave_bonds.append(b.GetIdx())
-
-    # 2. If fewer than n_subpockets - 1, supplement with rotatable acyclic single bonds
-    if len(cleave_bonds) < n_subpockets - 1:
-        for b in mol.GetBonds():
-            if (b.GetBondType() == Chem.BondType.SINGLE and 
-                not b.IsInRing() and 
-                b.GetBeginAtom().GetDegree() > 1 and 
-                b.GetEndAtom().GetDegree() > 1 and 
-                b.GetIdx() not in cleave_bonds):
-                cleave_bonds.append(b.GetIdx())
-                if len(cleave_bonds) >= n_subpockets - 1:
-                    break
-
-    # Fragment the molecule on selected bonds
-    if cleave_bonds:
-        frags_mol = Chem.FragmentOnBonds(mol, cleave_bonds[:n_subpockets - 1], addDummies=False)
-        atom_groups = [list(grp) for grp in Chem.GetMolFrags(frags_mol, asMols=False)]
-    else:
-        adj = Chem.GetAdjacencyMatrix(mol)
-        atoms_per_frag = max(1, n_heavy // n_subpockets)
-        groups = []
-        visited = set()
-        for i in range(n_heavy):
-            if i in visited:
+    for k in range(n_subpockets, 1, -1):
+        for ms in [3, 1]:
+            try:
+                return decompose_k_fragments(mol, K=k, min_size=ms)
+            except ValueError:
                 continue
-            q, curr = [i], []
-            while q and len(curr) < atoms_per_frag:
-                u = q.pop(0)
-                if u not in visited:
-                    visited.add(u)
-                    curr.append(u)
-                    for v in range(n_heavy):
-                        if adj[u, v] == 1 and v not in visited:
-                            q.append(v)
-            groups.append(curr)
-        atom_groups = groups
+    return [[i for i in range(mol.GetNumHeavyAtoms())]], []
 
-    # Ensure exactly n_subpockets groups
-    while len(atom_groups) > n_subpockets:
-        min_idx = min(range(len(atom_groups)), key=lambda i: len(atom_groups[i]))
-        small_grp = atom_groups.pop(min_idx)
-        atom_groups[0].extend(small_grp)
 
-    while len(atom_groups) < n_subpockets:
-        max_idx = max(range(len(atom_groups)), key=lambda idx: len(atom_groups[idx]))
-        if len(atom_groups[max_idx]) <= 1:
-            break
-        half = len(atom_groups[max_idx]) // 2
-        g1, g2 = atom_groups[max_idx][:half], atom_groups[max_idx][half:]
-        atom_groups[max_idx] = g1
-        atom_groups.append(g2)
+def orient_tree(attachments: List[Tuple[int, int, int, int]], root: int) -> List[Tuple[int, int, int]]:
+    """Orient tree attachments from root outward. Returns list of (atom_in_parent, atom_in_child, child_frag)."""
+    nbr = defaultdict(list)
+    for u, fu, v, fv in attachments:
+        nbr[fu].append((fv, u, v))
+        nbr[fv].append((fu, v, u))
+    order, seen, edges = [root], {root}, []
+    for f in order:
+        for g, a, b in nbr[f]:
+            if g not in seen:
+                seen.add(g)
+                order.append(g)
+                edges.append((a, b, g))
+    return edges
 
-    # Track inter-fragment connectivity across cut bonds
-    attachments = []
-    adj = Chem.GetAdjacencyMatrix(mol)
-    for f_i, grp_i in enumerate(atom_groups):
-        for f_j in range(f_i + 1, len(atom_groups)):
-            grp_j = atom_groups[f_j]
-            for u in grp_i:
-                for v in grp_j:
-                    if adj[u, v] == 1:
-                        attachments.append((u, f_i, v, f_j))
 
-    return atom_groups, attachments
+def side_atoms(mol_h: Chem.Mol, u: int, v: int) -> np.ndarray:
+    """Find all atom indices on the child side of rotatable bond u-v (including hydrogens)."""
+    seen, stack = {v}, [v]
+    while stack:
+        a = stack.pop()
+        for nb in mol_h.GetAtomWithIdx(a).GetNeighbors():
+            n = nb.GetIdx()
+            if n in seen or (a == v and n == u):
+                continue
+            seen.add(n)
+            stack.append(n)
+    return np.array(sorted(seen))
+
+
+def rotate_about_bond(X: np.ndarray, a: int, b: int, side: np.ndarray, deg: float) -> np.ndarray:
+    """Rotate coordinates of side atoms about bond vector a -> b by deg degrees."""
+    ax = X[b] - X[a]
+    nrm = np.linalg.norm(ax)
+    if nrm < 1e-6:
+        return X
+    ax = ax / nrm
+    R = Rot.from_rotvec(np.radians(deg) * ax).as_matrix()
+    Y = X.copy()
+    Y[side] = (X[side] - X[b]) @ R.T + X[b]
+    return Y
+
+
+def intramolecular_clash(
+    P: np.ndarray,
+    gd: np.ndarray,
+    rvdw: np.ndarray,
+    scale: float = 0.8,
+    min_graph: int = 4
+) -> bool:
+    """Check for intramolecular steric clashes among heavy atoms separated by min_graph bonds."""
+    D = np.linalg.norm(P[:, None] - P[None, :], axis=-1)
+    thr = scale * (rvdw[:, None] + rvdw[None, :])
+    return bool(((D < thr) & (gd >= min_graph)).any())
+
+
+def dihedral(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarray:
+    """Calculate dihedral angle in degrees between four points or batches of points."""
+    b0 = p0 - p1
+    b1 = p2 - p1
+    nrm1 = np.linalg.norm(b1, axis=-1, keepdims=True)
+    b1 = b1 / (nrm1 + 1e-9)
+    b2 = p3 - p2
+    v = b0 - (b0 * b1).sum(-1, keepdims=True) * b1
+    w = b2 - (b2 * b1).sum(-1, keepdims=True) * b1
+    return np.degrees(np.arctan2((np.cross(b1, v) * w).sum(-1), (v * w).sum(-1)))
+
+
+def torsion_profile(
+    mol_h: Chem.Mol,
+    conf_id: int,
+    a2: int,
+    a: int,
+    b: int,
+    b2: int,
+    step: int = 30
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Relaxed MMFF scan of cut-bond dihedral (a2-a-b-b2)."""
+    m = Chem.Mol(mol_h)
+    props = AllChem.MMFFGetMoleculeProperties(m)
+    if props is None or not props.IsValid():
+        phis = np.linspace(-180, 180, 360 // step, endpoint=False)
+        return phis, np.zeros_like(phis)
+    conf = m.GetConformer(conf_id)
+    phis, Es = [], []
+    for th in range(-180, 180, step):
+        try:
+            T.SetDihedralDeg(conf, a2, a, b, b2, float(th))
+            ff = AllChem.MMFFGetMoleculeForceField(m, props, confId=conf_id)
+            if ff is not None:
+                ff.MMFFAddTorsionConstraint(a2, a, b, b2, False, max(th - 1.0, -180.0), min(th + 1.0, 180.0), 500.0)
+                ff.Initialize()
+                ff.Minimize(maxIts=50)
+                P = m.GetConformer(conf_id).GetPositions()
+                Es.append(float(ff.CalcEnergy()))
+                phis.append(float(dihedral(P[a2], P[a], P[b], P[b2])))
+            else:
+                phis.append(float(th))
+                Es.append(0.0)
+        except Exception:
+            phis.append(float(th))
+            Es.append(0.0)
+    Es_arr = np.array(Es)
+    phis_arr = np.array(phis)
+    order = np.argsort(phis_arr)
+    return phis_arr[order], (Es_arr - Es_arr.min())[order]
+
+
+def torsion_term(
+    PA: List[Placement],
+    PB: List[Placement],
+    jA: Tuple[int, Optional[int]],
+    jB: Tuple[int, Optional[int]],
+    prof: Optional[Tuple[np.ndarray, np.ndarray]],
+    kcal_scale: float = 5.0
+) -> np.ndarray:
+    """Calculate pair torsion energy penalty between fragment placements."""
+    if prof is None or jA[1] is None or jB[1] is None:
+        return np.zeros((len(PA), len(PB)), dtype=float)
+    a, a2 = jA
+    b, b2 = jB
+    st_A = lambda P, i: np.stack([p.xyz[i] for p in P])
+    phi = dihedral(st_A(PA, a2)[:, None], st_A(PA, a)[:, None],
+                   st_A(PB, b)[None, :], st_A(PB, b2)[None, :])
+    return np.interp(phi, prof[0], prof[1], period=360) / kcal_scale
+
+
+def buried_grid(
+    pocket_xyz: np.ndarray,
+    box_center: Optional[np.ndarray] = None,
+    half: float = 10.0,
+    step: float = 1.0,
+    min_dist: float = 3.2,
+    shell: float = 8.0,
+    min_nb: int = 40
+) -> np.ndarray:
+    """Identify ligand-accessible, buried cavity grid points inside the binding pocket."""
+    from scipy.spatial import cKDTree
+    if box_center is None:
+        box_center = pocket_xyz.mean(0)
+    ax = np.arange(-half, half + step, step)
+    G = np.stack(np.meshgrid(ax, ax, ax, indexing="ij"), -1).reshape(-1, 3) + box_center
+    tree = cKDTree(pocket_xyz)
+    d, _ = tree.query(G)
+    nb = np.array([len(x) for x in tree.query_ball_point(G, shell)])
+    pts = G[(d > min_dist) & (nb >= min_nb)]
+    if len(pts) == 0:
+        return np.array([box_center])
+    return pts
 
 
 def partition_molecule_to_subpockets(
@@ -556,6 +700,7 @@ def partition_molecule_to_subpockets(
     """Partition heavy atoms of a candidate molecule into connected sub-pocket groups via BRICS / rotatable bonds."""
     atom_groups, _ = decompose_candidate_to_fragments(mol, n_subpockets=n_subpockets)
     return atom_groups
+
 
 
 def parse_smiles_strict(smi: str) -> Chem.Mol:
@@ -689,11 +834,6 @@ def junction_penalty(
         e = e + ((ang(a, b, b2) - ref[2]) / 12.0) ** 2
 
     b_ij = np.minimum(e, cap) / cap
-    for i_a, p_a in enumerate(PA):
-        for i_b, p_b in enumerate(PB):
-            if p_a.parent == p_b.parent:
-                b_ij[i_a, i_b] = 0.0
-
     return b_ij
 
 
@@ -708,8 +848,6 @@ def clash(
     min_graph: int = 4
 ) -> int:
     """Evaluate steric clash with topological exclusion (excluding 1-2, 1-3, 1-4 bonds)."""
-    if PA.parent == PB.parent:
-        return 0
     D = np.linalg.norm(PA.xyz[:, None] - PB.xyz[None, :], axis=-1)
     thr = scale * (rvdw[gA][:, None] + rvdw[gB][None, :])
     topo = gd[np.ix_(gA, gB)] >= min_graph
@@ -732,11 +870,119 @@ def generate_3d_rotations() -> List[np.ndarray]:
     return rots
 
 
+def build_library(
+    mol_h: Chem.Mol,
+    conformers_h: List[np.ndarray],
+    groups: List[List[int]],
+    attachments: List[Tuple[int, int, int, int]],
+    centers: np.ndarray,
+    score_fn: Any,
+    gd: np.ndarray,
+    rvdw: np.ndarray,
+    pocket_atoms: Optional[np.ndarray] = None,
+    search_mode: str = "oracle",
+    torsion_deg: float = 60.0,
+    n_beam: int = 40,
+    div_rmsd: float = 0.5,
+    n_jitter: int = 25,
+    seed: int = 0,
+) -> Tuple[List[List[Placement]], List[List[int]], List[Tuple[float, np.ndarray]]]:
+    """Build conformer-coherent fragment placement pools with parent-level beam and tree torsion sweeps."""
+    K = len(groups)
+    n_heavy = gd.shape[0]
+    anchor = max(range(K), key=lambda k: len(groups[k]))
+    edges = orient_tree(attachments, anchor)
+    sides = {(a, b): side_atoms(mol_h, a, b) for a, b, _ in edges}
+    angles = np.arange(0, 360, torsion_deg)
+    memo: Dict[Tuple[int, bytes], float] = {}
+    cands: List[Tuple[float, np.ndarray]] = []
+
+    def frag_score(Y: np.ndarray, k: int) -> float:
+        key = (k, np.round(Y[groups[k]], 3).tobytes())
+        if key not in memo:
+            memo[key] = score_fn(Y[groups[k]], k)
+        return memo[key]
+
+    rng = np.random.default_rng(seed)
+
+    if search_mode == "blind" and pocket_atoms is not None:
+        grid_pts = buried_grid(pocket_atoms, box_center=pocket_atoms.mean(0))
+        n_pts = min(len(grid_pts), 15)
+        chosen_pts = grid_pts[rng.choice(len(grid_pts), size=n_pts, replace=False)] if len(grid_pts) > n_pts else grid_pts
+        rots = generate_3d_rotations()
+        for c, X in enumerate(conformers_h[:5]):
+            X_heavy = X[:n_heavy]
+            anc_c = X_heavy[groups[anchor]].mean(0)
+            X_cent = X - anc_c
+            for pt in chosen_pts:
+                for R in rots[:6]:
+                    Xp = X_cent @ R.T + pt
+                    for combo in itertools.product(angles, repeat=len(edges)):
+                        Y = Xp
+                        for (a, b, _), th in zip(edges, combo):
+                            if th:
+                                Y = rotate_about_bond(Y, a, b, sides[(a, b)], th)
+                        if intramolecular_clash(Y[:n_heavy], gd, rvdw):
+                            continue
+                        s = sum(frag_score(Y, k) for k in range(K))
+                        cands.append((s, Y))
+    else:
+        for c, X in enumerate(conformers_h[:8]):
+            poses = whole_molecule_poses(X[:n_heavy], groups, centers, n_jitter=min(n_jitter, 10), seed=seed + c)
+            for R, t in poses:
+                Xp = X @ R.T + t
+                for combo in itertools.product(angles, repeat=len(edges)):
+                    Y = Xp
+                    for (a, b, _), th in zip(edges, combo):
+                        if th:
+                            Y = rotate_about_bond(Y, a, b, sides[(a, b)], th)
+                    if intramolecular_clash(Y[:n_heavy], gd, rvdw):
+                        continue
+                    s = sum(frag_score(Y, k) for k in range(K))
+                    cands.append((s, Y))
+                    if len(cands) >= 2500:
+                        break
+                if len(cands) >= 2500:
+                    break
+            if len(cands) >= 2500:
+                break
+
+
+    cands.sort(key=lambda item: item[0])
+    beam: List[Tuple[float, np.ndarray]] = []
+    for s, Y in cands:
+        if all(np.sqrt(((Y[:n_heavy] - Z[:n_heavy]) ** 2).sum(-1).mean()) > div_rmsd for _, Z in beam):
+            beam.append((s, Y))
+        if len(beam) == n_beam:
+            break
+
+    if len(beam) == 0 and len(cands) > 0:
+        beam = cands[:n_beam]
+
+    pools: List[List[Placement]] = [[] for _ in groups]
+    index: List[Dict[bytes, int]] = [{} for _ in groups]
+    pose_slices: List[List[int]] = []
+
+    for pid, (s, Y) in enumerate(beam):
+        row = []
+        for k, g in enumerate(groups):
+            key = np.round(Y[g], 3).tobytes()
+            if key not in index[k]:
+                index[k][key] = len(pools[k])
+                pools[k].append(Placement(frag=k, parent=pid, xyz=Y[g].copy(), score=frag_score(Y, k)))
+            row.append(index[k][key])
+        pose_slices.append(row)
+
+    return pools, pose_slices, beam
+
+
 def generate_candidate_pocket_placements(
     candidate_smiles: str,
     receptor: str = "5V3Y",
     poses_per_subpocket: int = 3,
     n_subpockets: int = 4,
+    search_mode: str = "oracle",
+    centers: Optional[np.ndarray] = None,
     seed: int = 42,
 ) -> Dict[str, Any]:
     """Generate candidate- and receptor-dependent 3D placements via conformer-coherent docking.
@@ -744,56 +990,72 @@ def generate_candidate_pocket_placements(
     Computes:
     - Candidate-dependent chemical fragments via BRICS retrosynthetic cleavage.
     - Whole-molecule conformer generation and coherent pocket alignment.
+    - Torsion-expanded tree placement library with parent-level beam.
     - Sliced fragment placement pools sharing common conformer transforms.
     - Atom-typed physical docking score against receptor cavity.
     - Steric clash matrix with topological exclusion (min graph distance >= 4).
-    - Covalent connectivity matrix evaluating exact junction bond distances and angles.
+    - Covalent connectivity matrix evaluating exact junction bond distances, angles, and torsions.
     """
     mol = parse_smiles_strict(candidate_smiles)
     mol = Chem.RemoveHs(mol)
 
     mol_h = Chem.AddHs(mol)
-    res_embed = AllChem.EmbedMultipleConfs(mol_h, numConfs=50, randomSeed=seed)
+    res_embed = AllChem.EmbedMultipleConfs(mol_h, numConfs=20, randomSeed=seed)
     if len(res_embed) == 0:
-        AllChem.EmbedMultipleConfs(mol_h, numConfs=50, useRandomCoords=True, randomSeed=seed)
-    mol_work = Chem.RemoveHs(mol_h)
-    conformers = [mol_work.GetConformer(i).GetPositions() for i in range(mol_work.GetNumConformers())]
+        AllChem.EmbedMultipleConfs(mol_h, numConfs=20, useRandomCoords=True, randomSeed=seed)
+    conformers_h = [mol_h.GetConformer(i).GetPositions() for i in range(mol_h.GetNumConformers())]
 
-    atom_groups, attachments = decompose_candidate_to_fragments(mol, n_subpockets=n_subpockets)
+    atom_groups, attachments = decompose_k_fragments(mol, K=n_subpockets)
     pocket_atoms, pocket_elements = load_receptor_pocket_atoms(receptor=receptor, return_elements=True)
     subpocket_centers = get_receptor_subpocket_centers(receptor=receptor, n_subpockets=n_subpockets)
     subpocket_keys = list(subpocket_centers.keys())
-    centers_arr = np.array(list(subpocket_centers.values()))
+    centers_arr = np.asarray(centers, dtype=float) if centers is not None else np.array(list(subpocket_centers.values()))
 
-    n_vars = n_subpockets * poses_per_subpocket
-    fragment_id = torch.tensor(
-        [i // poses_per_subpocket for i in range(n_vars)],
-        dtype=torch.long
-    )
+    gd = Chem.GetDistanceMatrix(mol)
+    pt = Chem.GetPeriodicTable()
+    rvdw = np.array([pt.GetRvdw(a.GetAtomicNum()) for a in mol.GetAtoms()])
 
     def score_fn(frag_coords: np.ndarray, k: int) -> float:
         grp = atom_groups[k]
         frag_elems = [mol.GetAtomWithIdx(i).GetSymbol() for i in grp] if len(grp) > 0 else ["C"]
-        d_min = float(np.min(np.linalg.norm(frag_coords[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
-        clash_pen = 15.0 * (1.8 - d_min) if d_min < 1.8 else 0.0
-        e_contact = compute_atom_typed_docking_score(
+        return compute_atom_typed_docking_score(
             frag_coords=frag_coords,
             pocket_atoms=pocket_atoms,
             frag_elements=frag_elems,
             pocket_elements=pocket_elements,
             soft_clip=True,
         )
-        return e_contact + clash_pen
 
-    pools = build_pools(
-        conformers=conformers,
+    lib_pools, pose_slices, beam = build_library(
+        mol_h=mol_h,
+        conformers_h=conformers_h,
         groups=atom_groups,
+        attachments=attachments,
         centers=centers_arr,
         score_fn=score_fn,
-        n_keep=poses_per_subpocket,
-        div_rmsd=1.0,
-        n_jitter=30,
+        gd=gd,
+        rvdw=rvdw,
+        pocket_atoms=pocket_atoms,
+        search_mode=search_mode,
+        n_beam=max(30, poses_per_subpocket * 10),
         seed=seed,
+    )
+
+    pools: List[List[Placement]] = []
+    for k in range(n_subpockets):
+        frag_pool = lib_pools[k]
+        if len(frag_pool) > poses_per_subpocket:
+            frag_pool = sorted(frag_pool, key=lambda p: p.score)[:poses_per_subpocket]
+        elif len(frag_pool) < poses_per_subpocket:
+            while len(frag_pool) < poses_per_subpocket:
+                p_copy = frag_pool[0]
+                frag_pool.append(Placement(frag=k, parent=p_copy.parent, xyz=p_copy.xyz + 0.05, score=p_copy.score))
+        pools.append(frag_pool)
+
+    n_vars = n_subpockets * poses_per_subpocket
+    fragment_id = torch.tensor(
+        [i // poses_per_subpocket for i in range(n_vars)],
+        dtype=torch.long
     )
 
     coords = []
@@ -811,13 +1073,6 @@ def generate_candidate_pocket_placements(
             var_idx = p_idx * poses_per_subpocket + pose_idx
             pose_centroid = np.mean(p.xyz, axis=0)
             d_min = float(np.min(np.linalg.norm(p.xyz[:, None, :] - pocket_atoms[None, :, :], axis=-1)))
-            e_contact = compute_atom_typed_docking_score(
-                frag_coords=p.xyz,
-                pocket_atoms=pocket_atoms,
-                frag_elements=[mol.GetAtomWithIdx(i).GetSymbol() for i in group],
-                pocket_elements=pocket_elements,
-                soft_clip=True,
-            )
 
             coords.append(pose_centroid)
             placement_frags_coords.append(p.xyz)
@@ -831,7 +1086,6 @@ def generate_candidate_pocket_placements(
                 "pose_id": pose_idx,
                 "coord": pose_centroid.tolist(),
                 "dG": float(p.score),
-                "e_contact": float(e_contact),
                 "min_protein_dist": float(d_min),
                 "n_fragment_atoms": len(group),
                 "fragment_atom_indices": group,
@@ -843,10 +1097,6 @@ def generate_candidate_pocket_placements(
 
     # Inter-fragment steric clashes with topological exclusion
     clash_t = torch.zeros((n_vars, n_vars), dtype=torch.float64)
-    gd = Chem.GetDistanceMatrix(mol)
-    pt = Chem.GetPeriodicTable()
-    rvdw = np.array([pt.GetRvdw(a.GetAtomicNum()) for a in mol.GetAtoms()])
-
     for i in range(n_vars):
         f_i = int(fragment_id[i])
         p_i = all_placements[i]
@@ -857,11 +1107,10 @@ def generate_candidate_pocket_placements(
                 if clash(p_i, p_j, atom_groups[f_i], atom_groups[f_j], gd, rvdw):
                     clash_t[i, j] = clash_t[j, i] = 1.0
 
-    # Inter-fragment covalent connectivity evaluated via exact junction bond geometry
+    # Inter-fragment covalent connectivity evaluated via exact junction bond geometry + cut-bond torsion profile
     conn_t = torch.zeros((n_vars, n_vars), dtype=torch.float64)
     adj = Chem.GetAdjacencyMatrix(mol)
 
-    # Precompute reference bond lengths and angles for cut bonds across the conformer ensemble
     for (u, f_u, v, f_v) in attachments:
         grp_u = atom_groups[f_u]
         grp_v = atom_groups[f_v]
@@ -871,20 +1120,40 @@ def generate_candidate_pocket_placements(
         jA = (grp_u.index(u), grp_u.index(u2) if u2 is not None else None)
         jB = (grp_v.index(v), grp_v.index(v2) if v2 is not None else None)
 
-        d_list = [np.linalg.norm(X[u] - X[v]) for X in conformers]
+        d_list = [np.linalg.norm(X[u] - X[v]) for X in conformers_h]
         d0 = float(np.median(d_list))
-        th_a0 = float(np.median([ang(X[u2], X[u], X[v]) for X in conformers])) if u2 is not None else 120.0
-        th_b0 = float(np.median([ang(X[u], X[v], X[v2]) for X in conformers])) if v2 is not None else 120.0
+        th_a0 = float(np.median([ang(X[u2], X[u], X[v]) for X in conformers_h])) if u2 is not None else 120.0
+        th_b0 = float(np.median([ang(X[u], X[v], X[v2]) for X in conformers_h])) if v2 is not None else 120.0
+
+        prof = None
+        if u2 is not None and v2 is not None and len(conformers_h) > 0:
+            try:
+                prof = torsion_profile(mol_h, 0, u2, u, v, v2, step=30)
+            except Exception:
+                prof = None
 
         b_mat = junction_penalty(pools[f_u], pools[f_v], jA, jB, (d0, th_a0, th_b0))
+        tors_mat = torsion_term(pools[f_u], pools[f_v], jA, jB, prof)
+
         for p_u_idx in range(poses_per_subpocket):
             var_u = f_u * poses_per_subpocket + p_u_idx
             for p_v_idx in range(poses_per_subpocket):
                 var_v = f_v * poses_per_subpocket + p_v_idx
                 b_val = float(b_mat[p_u_idx, p_v_idx])
-                # Reward conforming junctions (b_val ~ 0 -> conn = -1.0; b_val ~ 1 -> conn = 0.0)
-                conn_val = -(1.0 - b_val)
-                conn_t[var_u, var_v] = conn_t[var_v, var_u] = conn_val
+                conn_val = -(1.0 - b_val) + 0.15 * float(tors_mat[p_u_idx, p_v_idx])
+                conn_t[var_u, var_v] += conn_val
+                conn_t[var_v, var_u] += conn_val
+
+    # Track pure parent combinations present within the final pools
+    final_parent_slices = []
+    parent_to_frag_idx: Dict[int, Dict[int, int]] = defaultdict(dict)
+    for p_idx in range(n_subpockets):
+        for pose_idx, p in enumerate(pools[p_idx]):
+            parent_to_frag_idx[p.parent][p_idx] = p_idx * poses_per_subpocket + pose_idx
+
+    for pid, f_map in parent_to_frag_idx.items():
+        if len(f_map) == n_subpockets:
+            final_parent_slices.append([f_map[k] for k in range(n_subpockets)])
 
     return {
         "n_vars": n_vars,
@@ -901,6 +1170,9 @@ def generate_candidate_pocket_placements(
         "variable_meta": variable_meta,
         "receptor": receptor,
         "candidate_smiles": candidate_smiles,
+        "pose_slices": final_parent_slices,
+        "beam": beam,
+        "search_mode": search_mode,
     }
 
 
@@ -913,6 +1185,8 @@ def build_candidate_qubo(
     B: float = 5.0,
     C: float = 5.0,
     D: float = 25.0,
+    search_mode: str = "oracle",
+    centers: Optional[np.ndarray] = None,
     seed: int = 42,
 ) -> Dict[str, Any]:
     """Assemble candidate-specific and receptor-specific Yanagisawa QUBO.
@@ -926,6 +1200,8 @@ def build_candidate_qubo(
         receptor=receptor,
         poses_per_subpocket=poses_per_subpocket,
         n_subpockets=n_subpockets,
+        search_mode=search_mode,
+        centers=centers,
         seed=seed,
     )
     dG = placements["dG"]
@@ -933,9 +1209,13 @@ def build_candidate_qubo(
     conn = placements["conn"]
     fragment_id = placements["fragment_id"]
 
+    # Guarantee one-hot constraint holds mathematically: D > 1.5 * spread(A * dG) + B + C
+    spread = float(dG.max() - dG.min()) if dG.numel() > 0 else 0.0
+    D_eff = max(float(D), 1.5 * abs(A) * spread + abs(B) + abs(C))
+
     bundle = build_yanagisawa_qubo(
         dG, clash, conn, fragment_id,
-        A=A, B=B, C=C, D=D
+        A=A, B=B, C=C, D=D_eff
     )
     val = validate_qubo(bundle, equivalence_trials=200, atol=1e-8)
     if not val["passed"]:
@@ -961,4 +1241,65 @@ def build_candidate_qubo(
         "validation": val,
         "receptor": receptor,
         "candidate_smiles": candidate_smiles,
+        "pose_slices": placements.get("pose_slices"),
+        "search_mode": search_mode,
     }
+
+
+def exact_onehot_optimum(Q: np.ndarray, fragment_id: Sequence[int]) -> Tuple[float, List[int]]:
+    """Compute the exact global minimum of QUBO Q subject to 1-hot constraint per fragment.
+
+    Evaluates the combinatorial product space across fragments (K <= 12, N_combos <= 5e6).
+    Returns (E_min, selected_variable_indices).
+    """
+    Q_arr = np.asarray(Q, dtype=float)
+    frag_arr = np.asarray(fragment_id, dtype=int)
+    K = int(np.max(frag_arr)) + 1
+    idx = [np.flatnonzero(frag_arr == k) for k in range(K)]
+    assert np.prod([len(i) for i in idx]) <= 5e6, "Combination space exceeds exact enumeration limit"
+
+    sel = [g.ravel() for g in np.meshgrid(*idx, indexing="ij")]
+    E = sum(Q_arr[s, s] for s in sel)
+    for a in range(K):
+        for b in range(a + 1, K):
+            E = E + 2 * Q_arr[sel[a], sel[b]]
+    m = int(E.argmin())
+    return float(E[m]), [int(s[m]) for s in sel]
+
+
+def mixing_gain(
+    Q: np.ndarray,
+    fragment_id: Sequence[int],
+    pose_slices: Optional[List[List[int]]] = None
+) -> Dict[str, Any]:
+    """Measure the energy gain of combinatorial fragment recombination vs the best pure whole pose.
+
+    gain = E_pure_best - E_combinatorial_optimum
+    If gain == 0, the QUBO merely selects a single rigid conformer slice without recombination.
+    If gain > 0, the QUBO actively assembles a novel multi-fragment recombinant pose.
+    """
+    Q_arr = np.asarray(Q, dtype=float)
+    E_opt, sel = exact_onehot_optimum(Q_arr, fragment_id)
+    n_vars = len(Q_arr)
+
+    valid_pure_energies = []
+    if pose_slices:
+        for s in pose_slices:
+            if all(0 <= idx < n_vars for idx in s) and len(s) == len(set(fragment_id)):
+                e_pure = sum(Q_arr[s[a], s[a]] for a in range(len(s))) + 2 * sum(
+                    Q_arr[s[a], s[b]] for a in range(len(s)) for b in range(a + 1, len(s))
+                )
+                valid_pure_energies.append(float(e_pure))
+
+    if not valid_pure_energies:
+        return {"E_opt": float(E_opt), "E_pure": float(E_opt), "gain": 0.0, "selection": sel}
+
+    E_pure_best = min(valid_pure_energies)
+    return {
+        "E_opt": float(E_opt),
+        "E_pure": float(E_pure_best),
+        "gain": float(max(0.0, E_pure_best - E_opt)),
+        "selection": sel,
+    }
+
+
