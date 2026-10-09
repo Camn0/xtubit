@@ -517,11 +517,16 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
             receptor_transform=trans_transform
         )
 
-        # Parent purity of selected solution
+        # Parent purity: maximum fraction of fragments originating from a single dominant parent conformer
+        from collections import Counter
         var_meta = qubo_data.get("variable_meta", [])
         selected_vars = [p_id * 3 + p_pose for p_id, p_pose in decoded.items()]
-        selected_parents = {var_meta[v]["parent_id"] for v in selected_vars if v < len(var_meta)}
-        parent_purity = round(1.0 / max(1, len(selected_parents)), 3)
+        parent_ids = [var_meta[v]["parent_id"] for v in selected_vars if v < len(var_meta)]
+        if parent_ids:
+            counts = Counter(parent_ids)
+            parent_purity = round(max(counts.values()) / len(parent_ids), 3)
+        else:
+            parent_purity = 1.0
 
         # Evaluate physical protein pocket contacts and clashes
         pocket_atoms = load_receptor_pocket_atoms(exp["receptor"])
@@ -530,11 +535,15 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
         clashes = int(np.sum(d_prot < 2.0))
         contact_dG = compute_protein_fragment_contact_potential(c_clean, pocket_atoms)
 
+        # Decouple receptor-dependent one-hot penalty multiplier D from physical interaction score
+        onehot_c = float(qubo_data["bundle"].onehot_constant) if "bundle" in qubo_data else 0.0
+        interaction_energy = float(e_exact + onehot_c)
+
         is_cognate = bool(exp["receptor"] == exp["ref_pdb"])
         if is_cognate:
-            cognate_energies[exp["cand_id"]] = float(e_exact)
+            cognate_energies[exp["cand_id"]] = interaction_energy
 
-        delta_vs_cognate = round(float(e_exact) - cognate_energies.get(exp["cand_id"], float(e_exact)), 3)
+        delta_vs_cognate = round(interaction_energy - cognate_energies.get(exp["cand_id"], interaction_energy), 3)
 
         results.append({
             "experiment": exp["name"],
@@ -542,14 +551,15 @@ def run_cross_docking_benchmark(out_dir: Path) -> Dict[str, Any]:
             "receptor_pdb": exp["receptor"],
             "reference_crystal_pdb": exp["ref_pdb"],
             "is_cognate": is_cognate,
-            "qubo_energy": round(float(e_exact), 3),
+            "qubo_energy": round(interaction_energy, 3),
+            "raw_qubo_energy": round(float(e_exact), 3),
             "score_diff_vs_cognate": delta_vs_cognate,
             "receptor_contact_dG": round(float(contact_dG), 2),
             "receptor_clashes": clashes,
             "ligand_strain_energy_kcal_mol": relaxed["ligand_strain_energy_kcal_mol"],
             "minimized_energy_kcal_mol": relaxed["minimized_energy_kcal_mol"],
             "energy_type": "Ligand Intramolecular Strain (MMFF94)",
-            "closure_shift_A": relaxed.get("closure_shift", 0.0),
+            "closure_shift_A": relaxed.get("closure_shift_A", relaxed.get("closure_shift", 0.0)),
             "parent_purity": parent_purity,
             "rmsd_pre_closure_conformer_A": rmsd_pre["conformer_aligned_rmsd_A"],
             "rmsd_pre_closure_pocket_A": rmsd_pre["in_pocket_cartesian_rmsd_A"],

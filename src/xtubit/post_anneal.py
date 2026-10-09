@@ -144,7 +144,8 @@ def close_molecule(
     mol: Chem.Mol,
     xyz_heavy: np.ndarray,
     e_ref: Optional[float] = None,
-    stages: Tuple[Tuple[float, float], ...] = ((100.0, 0.25), (30.0, 0.5), (8.0, 1.0), (1.0, 1.5))
+    stages: Tuple[Tuple[float, float], ...] = ((100.0, 0.25), (30.0, 0.5), (8.0, 1.0), (1.0, 1.5)),
+    max_steps: int = 1000,
 ) -> Dict[str, Any]:
     """Perform staged restrained geometry closure on all heavy atoms with gradual release.
     
@@ -162,17 +163,19 @@ def close_molecule(
     use_mmff = props is not None and AllChem.MMFFHasAllMoleculeParams(mh)
     n = m.GetNumAtoms()
 
-    for k, tol in stages:
-        if use_mmff:
-            ff = AllChem.MMFFGetMoleculeForceField(mh, props)
-            for i in range(n):
-                ff.MMFFAddPositionConstraint(i, tol, k)
-        else:
-            ff = AllChem.UFFGetMoleculeForceField(mh)
-            for i in range(n):
-                ff.UFFAddPositionConstraint(i, tol, k)
-        ff.Initialize()
-        ff.Minimize(maxIts=1000)
+    if max_steps > 0:
+        stage_its = max(1, int(max_steps))
+        for k, tol in stages:
+            if use_mmff:
+                ff = AllChem.MMFFGetMoleculeForceField(mh, props)
+                for i in range(n):
+                    ff.MMFFAddPositionConstraint(i, tol, k)
+            else:
+                ff = AllChem.UFFGetMoleculeForceField(mh)
+                for i in range(n):
+                    ff.UFFAddPositionConstraint(i, tol, k)
+            ff.Initialize()
+            ff.Minimize(maxIts=stage_its)
 
     pos = mh.GetConformer().GetPositions()[:n]
     if use_mmff:
@@ -187,6 +190,7 @@ def close_molecule(
         "mol": mh,
         "xyz": pos,
         "closure_shift": closure_shift,
+        "closure_shift_A": closure_shift,
         "strain": strain,
         "e_pose": e_pose,
         "e_ref": e_ref,
@@ -254,7 +258,7 @@ def minimize_ligand_in_pocket(
     else:
         # Staged restrained closure over all heavy atoms
         ref_e = e_ref if e_ref is not None else reference_min_energy(mol_clean, n=30)
-        c_res = close_molecule(mol_clean, xyz_heavy, e_ref=ref_e)
+        c_res = close_molecule(mol_clean, xyz_heavy, e_ref=ref_e, max_steps=max_steps)
         minimized_mol = c_res["mol"]
         minimized_energy = c_res["e_pose"]
         strain = c_res["strain"]
@@ -268,6 +272,7 @@ def minimize_ligand_in_pocket(
         "initial_energy_kcal_mol": round(initial_energy, 2),
         "minimized_energy_kcal_mol": round(minimized_energy, 2),
         "ligand_strain_energy_kcal_mol": round(strain, 2),
+        "closure_shift": round(shift, 3),
         "closure_shift_A": round(shift, 3),
         "delta_energy_kcal_mol": round(delta_e, 2),
         "converged": bool(status == 0),

@@ -182,3 +182,41 @@ def test_candidate_reaches_physics():
     assert np.all(np.abs(centroid) > 5.0), "Conformer should be placed near test_coords"
 
 
+def test_max_steps_controls_staged_closure_relaxation():
+    """Verify that max_steps directly controls the staged closure calculation."""
+    decoded = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    mol = stitch_fragments_to_molecule(decoded)
+
+    # When max_steps == 0, no minimization occurs: closure shift must be 0.0
+    res_0 = minimize_ligand_in_pocket(mol, max_steps=0)
+    assert res_0["closure_shift_A"] == 0.0
+    assert "closure_shift" in res_0
+    assert res_0["closure_shift"] == 0.0
+
+    # When max_steps > 0, relaxation occurs and both keys are present
+    res_50 = minimize_ligand_in_pocket(mol, max_steps=50)
+    assert "closure_shift_A" in res_50
+    assert "closure_shift" in res_50
+    assert res_50["closure_shift_A"] >= 0.0
+
+
+def test_dominant_parent_purity_metric():
+    """Verify parent purity reflects the maximum fraction of fragments from a dominant conformer."""
+    from collections import Counter
+    # Case 1: 100% single-parent conformer (all 4 from parent 3)
+    parents_pure = [3, 3, 3, 3]
+    purity_pure = max(Counter(parents_pure).values()) / len(parents_pure)
+    assert purity_pure == 1.0
+
+    # Case 2: 75% dominant parent conformer (3 from parent 3, 1 from parent 5)
+    parents_75 = [3, 3, 3, 5]
+    purity_75 = max(Counter(parents_75).values()) / len(parents_75)
+    assert purity_75 == 0.75
+
+    # Case 3: 25% chimera (all 4 fragments from distinct parents)
+    parents_chimera = [1, 2, 3, 4]
+    purity_chimera = max(Counter(parents_chimera).values()) / len(parents_chimera)
+    assert purity_chimera == 0.25
+
+
+

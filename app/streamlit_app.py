@@ -2372,13 +2372,7 @@ with tab_solvers:
 
     # Live Execution of Flexible Fragment Docking Hamiltonian
     coords_tensor = None
-    pocket_energy_offset = 0.0
-    if "8TQV" in pocket_target:
-        pocket_energy_offset = -0.75  # Cryptic hydrophobic pocket bonus
-    elif "5V40" in pocket_target:
-        pocket_energy_offset = +1.20  # Asp1644Gly loss of catalytic salt bridge penalty
-    elif "8TQG" in pocket_target:
-        pocket_energy_offset = +0.40  # Open loop entropic penalty
+    pocket_energy_offset = 0.0  # Zeroed out: no arbitrary pocket-specific bonuses or penalties
 
     cand_frag_poses = None
     cand_atom_groups = None
@@ -2533,26 +2527,27 @@ with tab_solvers:
         )
 
         # Compute potency-derived score (bioactivity proxy score from pIC50; not physical binding free energy)
+        # Compute potency-derived score (bioactivity proxy score from pIC50; not physical binding free energy)
         # Ground-truth reference: TAM16 co-crystal lead (pIC50 = 6.7212 -> proxy score = -9.17)
         has_empirical_lead = ("exp_pIC50" in cand_row and not pd.isna(cand_row["exp_pIC50"]) and cand_row["exp_pIC50"] is not None)
         active_pic50 = float(cand_row["exp_pIC50"]) if has_empirical_lead else float(cand_row["mu"])
-        cand_dG_bind = -1.364 * active_pic50 + pocket_energy_offset
+        cand_dG_bind = -1.364 * active_pic50
         tam16_ref_dG = -9.17
 
-        if cand_row["mol_id"] == "TAM16" and pocket_energy_offset == 0.0:
-            delta_lead_str = "0.00 kcal/mol-eq (Baseline Reference Lead)"
+        source_label = "Curated Assay" if has_empirical_lead else "Bayesian Surrogate"
+        delta_lead = cand_dG_bind - tam16_ref_dG
+        if cand_row["mol_id"] == "TAM16":
+            delta_lead_str = f"TAM16 Lead ({source_label})"
             delta_color = "off"
+        elif delta_lead < -0.05:
+            delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol-eq Higher ({source_label})"
+            delta_color = "normal"
+        elif delta_lead > 0.05:
+            delta_lead_str = f"{delta_lead:.2f} kcal/mol-eq Lower ({source_label})"
+            delta_color = "inverse"
         else:
-            delta_lead = cand_dG_bind - tam16_ref_dG
-            if abs(delta_lead) < 0.05:
-                delta_lead_str = "0.00 kcal/mol-eq (Iso-potent to TAM16)"
-                delta_color = "off"
-            elif delta_lead < 0:
-                delta_lead_str = f"{abs(delta_lead):.2f} kcal/mol-eq Higher Potency than TAM16"
-                delta_color = "normal"
-            else:
-                delta_lead_str = f"{delta_lead:.2f} kcal/mol-eq Lower Potency than TAM16"
-                delta_color = "inverse"
+            delta_lead_str = f"Iso-potent ({source_label})"
+            delta_color = "off"
 
         st.markdown("---")
         st.markdown(f"##### Physical Docking & Conformer Assembly Results for **{cand_row['mol_id']}** ({hamiltonian_scale.split('(')[0].strip()})")
@@ -2560,11 +2555,11 @@ with tab_solvers:
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
         with res_col1:
             st.metric(
-                "Potency Proxy Score",
+                "Potency Proxy (pIC50)",
                 f"{cand_dG_bind:.2f} kcal/mol-eq",
-                delta=delta_lead_str,
+                delta=f"pIC50 = {active_pic50:.2f} ({source_label})",
                 delta_color=delta_color,
-                help="Potency-derived proxy score calculated from assay IC50 (-1.364 * pIC50 kcal/mol-equivalent at 298.15 K). Note: this is a bioactivity proxy score, not a physical free energy of binding."
+                help="Potency-derived proxy score calculated from chemical bioactivity (-1.364 * pIC50 kcal/mol-equivalent at 298.15 K). Note: this is a surrogate property from chemical structure, NOT a physical binding free energy from the docking pose."
             )
 
         with res_col2:
@@ -2582,11 +2577,12 @@ with tab_solvers:
                 help=f"Conformer shape RMSD after optimal 3D rigid-body superposition vs {target_ref_pdb}. Pocket Cartesian RMSD measures absolute unaligned coordinate deviation in the receptor frame."
             )
         with res_col4:
+            solver_desc = "Exact Enumeration" if "Exact" in solver_engine else f"{num_agents} Agents (SB)"
             st.metric(
                 "Optimization Runtime",
                 f"{elapsed_ms:.1f} ms",
-                delta=f"{num_agents} Agents (Repaired Feasible)",
-                help=f"Optimization execution time. Solver score: H = {qubo_interaction_score:.1f} a.u."
+                delta=f"{solver_desc} (Feasible)",
+                help=f"Optimization execution time for QUBO solver + repair. Solver score: H = {qubo_interaction_score:.1f} a.u."
             )
 
         # Multi-model SDF Download button

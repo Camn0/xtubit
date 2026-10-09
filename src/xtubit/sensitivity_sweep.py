@@ -35,7 +35,7 @@ from xtubit.post_anneal import (
 logger = logging.getLogger("xtubit.sensitivity")
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(message)s")
 
-X20403_SMILES = "Cc1ccc(C(=O)NCc2cccs2)c2c1O[C@@H](CN1CCN(c3ccc(C#N)cn3)CC1)CO2"
+X20403_SMILES = "CN(CC1(CC1)COC)C(=O)c2ccc(cc2)CCn3cc(nn3)c4ccc(nc4)c5cc(ccc5OC)OC"
 
 
 def dock_instance(
@@ -80,8 +80,13 @@ def dock_instance(
     rmsd_post = compute_crystal_rmsd_detailed(relaxed["minimized_mol"], ref_pdb=receptor)
 
     var_meta = qubo_res.get("variable_meta", [])
-    selected_parents = {var_meta[v]["parent_id"] for v in sel_vars if v < len(var_meta)}
-    parent_purity = round(1.0 / max(1, len(selected_parents)), 3)
+    parent_ids = [var_meta[v]["parent_id"] for v in sel_vars if v < len(var_meta)]
+    from collections import Counter
+    if parent_ids:
+        counts = Counter(parent_ids)
+        parent_purity = round(max(counts.values()) / len(parent_ids), 3)
+    else:
+        parent_purity = 1.0
 
     pocket_atoms = load_receptor_pocket_atoms(receptor)
     c_clean = Chem.RemoveHs(relaxed["minimized_mol"]).GetConformer().GetPositions()
@@ -95,7 +100,7 @@ def dock_instance(
         "rmsd_post_closure": round(float(rmsd_post["in_pocket_cartesian_rmsd_A"]), 3),
         "aligned_rmsd": round(float(rmsd_post["conformer_aligned_rmsd_A"]), 3),
         "strain": round(float(relaxed["ligand_strain_energy_kcal_mol"]), 2),
-        "closure_shift": round(float(relaxed.get("closure_shift_A", 0.0)), 3),
+        "closure_shift": round(float(relaxed.get("closure_shift_A", relaxed.get("closure_shift", 0.0))), 3),
         "clashes": clashes,
         "parent_purity": parent_purity,
         "success_under_2A": bool(rmsd_post["in_pocket_cartesian_rmsd_A"] < 2.0),
