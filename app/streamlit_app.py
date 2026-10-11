@@ -126,23 +126,22 @@ MOCHI_CSS = """
         font-weight: 600 !important;
     }
 
-    /* Mochi Header Panel */
+    /* Mochi Header Panel - Compact Non-Blocking Topbar */
     .mochi-header {
-        background-color: #ffffff;
-        border: 1px solid #e8e4dc;
-        border-radius: 12px;
-        padding: 12px 18px;
-        margin-bottom: 14px;
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: baseline;
+        padding: 2px 0 8px 0;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #e8e4dc;
         flex-wrap: wrap;
-        gap: 10px;
-        box-shadow: 0 2px 6px rgba(60, 50, 40, 0.02);
+        gap: 8px;
     }
     .mochi-title-wrap {
         display: flex;
-        flex-direction: column;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
     }
     .mochi-title {
         font-size: 1.12rem;
@@ -153,22 +152,18 @@ MOCHI_CSS = """
     .mochi-subtitle {
         font-size: 0.80rem;
         color: #78716c;
-        margin-top: 2px;
     }
     .mochi-badge-row {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
         flex-wrap: wrap;
+        font-size: 0.78rem;
+        color: #57534e;
     }
     .mochi-badge {
-        background-color: #f4f1eb;
-        border: 1px solid #e2ddd4;
-        border-radius: 6px;
-        padding: 4px 9px;
-        font-size: 0.76rem;
-        font-weight: 600;
-        color: #44403c;
+        font-size: 0.78rem;
+        color: #57534e;
     }
 
     /* Soft Tab Navigation */
@@ -743,7 +738,7 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
         err_sign = "+" if err >= 0 else ""
         err_desc = "Surrogate Overestimates" if err > 0.1 else ("Surrogate Underestimates" if err < -0.1 else "Calibrated within 0.1 pIC50")
         
-        with st.expander(f"📘 Published Wet-Lab Bioassay Reference ({active_row['mol_id']})", expanded=False):
+        with st.expander(f"Published Wet-Lab Bioassay Reference ({active_row['mol_id']})", expanded=False):
             st.markdown(f"""
             • <strong>Experimental Enzymatic IC50:</strong> {exp_ic50_nM:.1f} nM ({exp_ic50_uM:.3f} µM) | <strong>pIC50:</strong> {exp_pic50:.2f}<br>
             • <strong>Assay Platform:</strong> Pks13-TE Fluorogenic Esterase Enzymatic Bioassay<br>
@@ -753,9 +748,9 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
             <span style="color: #78716c; font-size: 0.76rem;">Documented as reference benchmark series; see Tab 5 for full validation parity matrix.</span>
             """, unsafe_allow_html=True)
     else:
-        st.caption(f"ℹ️ {active_row['mol_id']}: In-Silico Proposed Analogue (Unpublished structure; surrogate prediction only. See Tab 5 for benchmark reference series).")
+        st.caption(f"{active_row['mol_id']}: In-Silico Proposed Analogue (Unpublished structure; surrogate prediction only. See Tab 5 for benchmark reference series).")
 
-    with st.expander("🧪 Pharmacophore & In-Silico ADMET Profile", expanded=False):
+    with st.expander("Pharmacophore & In-Silico ADMET Profile", expanded=False):
         st.markdown(f"""
         <div style="margin-bottom: 6px;">{clean_badge} {herg_badge} {synth_badge}</div>
         • <strong>Synthetic Route:</strong> ~{steps_v} Steps ({rxn_v}) | Complexity Index: <strong>{scscore_v:.2f}</strong><br>
@@ -777,6 +772,22 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
 # Sidebar: Library Selector & High-Throughput Ingestion
 # ==============================================================================
 with st.sidebar:
+    st.markdown("### Target Context")
+    st.caption("Pks13-TE (PDB ID: 5V3Y, 1.98 Å)")
+    with st.popover("Target Biology & Platform Guide", use_container_width=True):
+        st.markdown(r"""
+        ### Target Biology & Screening Mechanism
+        - **Target Protein**: *Mycobacterium tuberculosis* Polyketide Synthase 13 Thioesterase Domain (**Pks13-TE**, PDB: `5V3Y`, 1.98 Å resolution).
+        - **Mechanism**: Pks13 catalyzes the final condensation step synthesizing mature mycolic acid cell walls. Its inhibition kills multidrug-resistant tuberculosis strains.
+        - **Crystallographic Reference Lead**: **TAM16** (Aggarwal et al., Cell 2017, PDB `5V3Y` / ligand `5V8`). Co-crystallized benzofuran carboxamide lead (0.19 uM enzymatic IC50).
+        
+        ### Key Mathematical Metrics
+        - **Predicted Affinity ($\mu \pm \sigma$)**: $\text{pIC}_{50} = -\log_{10}(\text{IC}_{50}\text{ M})$. Calibrated via Bayesian variational surrogates with out-of-sample temperature scaling.
+        - **Drug-Likeness (QED)**: Quantitative Estimate of Drug-likeness (0–1). Values $> 0.60$ indicate favorable oral bioavailability.
+        - **Synthetic Difficulty (SA)**: Score 1–10 (Ertl & Schuffenhauer). Lower is easier to synthesize.
+        - **PMHI Index**: $\text{PMHI} = \frac{\mu \cdot \text{QED}}{\text{SA} + 0.1}$ balances potency, drug-likeness, and synthesis feasibility (Multi-Objective Pareto optimization, Paulson et al.).
+        """)
+    st.markdown("---")
     st.markdown("### Molecular Library Source")
     st.selectbox(
         "Active Screening Dataset",
@@ -954,39 +965,24 @@ with st.sidebar:
     )
 
 # ==============================================================================
-# Clean Header Bar with Informative Guide Popover
+# Slim Top Status Bar (Non-Blocking, Immediate Tab Access)
 # ==============================================================================
-h_c1, h_c2 = st.columns([3.8, 1.2])
-with h_c1:
-    active_rank_str = safe_int(active_row.get('rank'), 1)
-    st.markdown(f"""
-    <div class="mochi-header">
-        <div class="mochi-title-wrap">
-            <div class="mochi-title">X-TUBIT Molecular Discovery & Screening Workbench</div>
-            <div class="mochi-subtitle">Target: Mycobacterium tuberculosis Pks13-TE (PDB ID: 5V3Y, 1.98 Å)</div>
-        </div>
-        <div class="mochi-badge-row">
-            <div class="mochi-badge">Dataset: {len(df_active)} Compounds</div>
-            <div class="mochi-badge">Active: {active_mol_id} (Rank #{active_rank_str})</div>
-            <div class="mochi-badge">Status: {active_row['status']}</div>
-        </div>
+active_rank_str = safe_int(active_row.get('rank'), 1)
+st.markdown(f"""
+<div class="mochi-header">
+    <div class="mochi-title-wrap">
+        <span class="mochi-title">X-TUBIT Molecular Discovery & Screening Workbench</span>
+        <span class="mochi-subtitle">Target: Mycobacterium tuberculosis Pks13-TE (PDB ID: 5V3Y, 1.98 Å)</span>
     </div>
-    """, unsafe_allow_html=True)
-with h_c2:
-    with st.popover("Target Biology & Platform Guide", use_container_width=True):
-        st.markdown(r"""
-        ### Target Biology & Screening Mechanism
-        - **Target Protein**: *Mycobacterium tuberculosis* Polyketide Synthase 13 Thioesterase Domain (**Pks13-TE**, PDB: `5V3Y`, 1.98 Å resolution).
-        - **Mechanism**: Pks13 catalyzes the final condensation step synthesizing mature mycolic acid cell walls. Its inhibition kills multidrug-resistant tuberculosis strains.
-        - **Crystallographic Reference Lead**: **TAM16** (Aggarwal et al., Cell 2017, PDB `5V3Y` / ligand `5V8`). Co-crystallized benzofuran carboxamide lead (0.19 uM enzymatic IC50).
-        
-        ### Key Mathematical Metrics
-        - **Predicted Affinity ($\mu \pm \sigma$)**: $\text{pIC}_{50} = -\log_{10}(\text{IC}_{50}\text{ M})$. Calibrated via Bayesian variational surrogates with out-of-sample temperature scaling.
-
-        - **Drug-Likeness (QED)**: Quantitative Estimate of Drug-likeness (0–1). Values $> 0.60$ indicate favorable oral bioavailability.
-        - **Synthetic Difficulty (SA)**: Score 1–10 (Ertl & Schuffenhauer). Lower is easier to synthesize.
-        - **PMHI Index**: $\text{PMHI} = \frac{\mu \cdot \text{QED}}{\text{SA} + 0.1}$ balances potency, drug-likeness, and synthesis feasibility (Multi-Objective Pareto optimization, Paulson et al.).
-        """)
+    <div class="mochi-badge-row">
+        <span>Dataset: <strong>{len(df_active)} Compounds</strong></span>
+        <span>&bull;</span>
+        <span>Active: <strong>{active_mol_id}</strong> (Rank #{active_rank_str})</span>
+        <span>&bull;</span>
+        <span>Status: <strong>{active_row['status']}</strong></span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ==============================================================================
 # Professional Multi-Tab Workbench
@@ -1654,7 +1650,7 @@ with tab_compare:
 
     # Informative Head-to-Head Comparison Summary
     if row_a["mol_id"] == row_b["mol_id"]:
-        st.caption(f"ℹ️ Both selections are identical ({row_a['mol_id']}). Select a distinct molecule for Candidate B to evaluate differential potency, drug-likeness, and synthetic advantages.")
+        st.caption(f"Both selections are identical ({row_a['mol_id']}). Select a distinct molecule for Candidate B to evaluate differential potency, drug-likeness, and synthetic advantages.")
     else:
         wins_a = 0
         wins_b = 0
@@ -1700,7 +1696,7 @@ with tab_compare:
             winner_text = f"Balanced multi-parameter profile ({wins_a}–{wins_b}) between {row_a['mol_id']} and {row_b['mol_id']}"
             reasons_winner = ["Balanced multi-objective trade-offs across affinity, QED, and SA"]
 
-        with st.expander("📊 Multi-Parameter Optimization (MPO) Comparison Summary", expanded=False):
+        with st.expander("Multi-Parameter Optimization (MPO) Comparison Summary", expanded=False):
             st.markdown(f"""
             <strong>Multi-Parameter Optimization (MPO) Triage Verdict:</strong> {winner_text}<br>
             <span style="color: #78716c; font-size: 0.80rem;">Key Advantages: {' • '.join(reasons_winner)}</span>
@@ -2234,7 +2230,7 @@ with tab_conformer:
 # ==============================================================================
 with tab_solvers:
     # Top Educational & Product Output Guide (Minimized in interactive drawer)
-    with st.expander("❓ What Does Tab 4 Do & How Are Results Interpreted?", expanded=False):
+    with st.expander("What Does Tab 4 Do & How Are Results Interpreted?", expanded=False):
         st.markdown("""
         • <strong>The Purpose of Tab 4:</strong> Evaluates combinatorial fragment placements in the Pks13 catalytic pocket (PDB 5V3Y) formulated as a Quadratic Unconstrained Binary Optimization (QUBO) problem based on the Yanagisawa et al. (2024) flexible docking framework.<br>
         • <strong>QUBO Objective Energy (kcal/mol):</strong> Represents the overall combinatorial objective ($H = A H_1 + B H_2 + C H_3 + D H_4$). Combines protein-fragment interaction energy ($H_1$), steric clash penalties ($H_2$), and covalent connectivity rewards ($H_3$). <em>Lower (more negative) is better</em>.<br>
@@ -2416,7 +2412,7 @@ with tab_solvers:
             agent_energies = np.array([raw_energy])
         else:
             if solver_engine == "Exact Brute Force (Mathematical Proof)" and Q_mod.shape[0] > 16:
-                st.caption("ℹ️ Exact brute force on 60/90 qubits requires $2^{60} > 10^{18}$ states; automatically solved via Simulated Bifurcation in milliseconds.")
+                st.caption("Exact brute force on 60/90 qubits requires $2^{60} > 10^{18}$ states; automatically solved via Simulated Bifurcation in milliseconds.")
             try:
                 from xtubit.solvers.sb_adapter import solve_sb
             except ImportError:
