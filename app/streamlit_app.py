@@ -264,15 +264,15 @@ MOCHI_CSS = """
         border-color: #2a6f55;
     }
 
-    /* Informative Callout Box */
+    /* Informative Callout Box (Subtle, Muted, Non-Neon) */
     .mochi-info-box {
-        background-color: #fcfaf7;
-        border: 1px solid #e8e2d8;
-        border-left: 4px solid #2a6f55;
+        background-color: #faf9f6;
+        border: 1px solid #e8e4dc;
+        border-left: 3px solid #8c827a;
         border-radius: 8px;
-        padding: 10px 14px;
-        margin-bottom: 12px;
-        font-size: 0.82rem;
+        padding: 9px 13px;
+        margin-bottom: 10px;
+        font-size: 0.81rem;
         color: #44403c;
         line-height: 1.45;
     }
@@ -730,7 +730,7 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
     logs_v = safe_float(active_row.get("logs"), -5.0)
     t12_v = safe_float(active_row.get("microsomal_t12_min"), 45.0)
 
-    # Ground-truth empirical wet-lab validation status (Aggarwal 2017 & Krieger 2024)
+    # Literature Reference & In-Silico ADMET Context (Clean interactive expanders, no neon borders)
     has_empirical = ("exp_pIC50" in active_row and not pd.isna(active_row["exp_pIC50"]) and active_row["exp_pIC50"] is not None)
     if has_empirical:
         exp_pic50 = float(active_row["exp_pIC50"])
@@ -743,43 +743,26 @@ def render_candidate_focus_panel(active_row: pd.Series, df_active: pd.DataFrame,
         err_sign = "+" if err >= 0 else ""
         err_desc = "Surrogate Overestimates" if err > 0.1 else ("Surrogate Underestimates" if err < -0.1 else "Calibrated within 0.1 pIC50")
         
-        st.markdown(f"""
-        <div class="mochi-info-box" style="border-left: 4px solid #7b2cbf; background: #faf8fd;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <strong>Empirical Wet-Lab Bioassay Ground Truth ({active_row['mol_id']})</strong>
-                <span class="pill-badge pill-matcha">Published Empirical Lead</span>
-            </div>
+        with st.expander(f"📘 Published Wet-Lab Bioassay Reference ({active_row['mol_id']})", expanded=False):
+            st.markdown(f"""
             • <strong>Experimental Enzymatic IC50:</strong> {exp_ic50_nM:.1f} nM ({exp_ic50_uM:.3f} µM) | <strong>pIC50:</strong> {exp_pic50:.2f}<br>
             • <strong>Assay Platform:</strong> Pks13-TE Fluorogenic Esterase Enzymatic Bioassay<br>
             • <strong>Primary Literature Citation:</strong> {exp_src}<br>
             • <strong>Structural Biology:</strong> {exp_pdb}<br>
-            • <strong>Model-to-Empirical Reality Gap:</strong> Pred {pred_mu:.2f} vs Wet-Lab {exp_pic50:.2f} (Δ = {err_sign}{err:.2f} pIC50, {err_desc})
-        </div>
-        """, unsafe_allow_html=True)
+            • <strong>Model-to-Empirical Reality Gap:</strong> Pred {pred_mu:.2f} vs Wet-Lab {exp_pic50:.2f} (Δ = {err_sign}{err:.2f} pIC50, {err_desc})<br>
+            <span style="color: #78716c; font-size: 0.76rem;">Documented as reference benchmark series; see Tab 5 for full validation parity matrix.</span>
+            """, unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div class="mochi-info-box" style="border-left: 4px solid #64748b; background: #f8fafc;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <strong>Empirical Wet-Lab Bioassay Status ({active_row['mol_id']})</strong>
-                <span class="pill-badge pill-azuki">Awaiting Wet-Lab Bioassay</span>
-            </div>
-            • <strong>Status:</strong> Novel In-Silico Proposed Analogue (Unpublished de-novo structure)<br>
-            • <strong>In-Silico Surrogate Estimate:</strong> ~{ic50_est_nM:.1f} nM (pIC50 {active_row['mu']:.2f} ± {active_row['sigma']:.2f} σ)<br>
-            • <strong>Empirical Grounding:</strong> Ready for CRO synthesis & bioassay quoting (see Tab 5 Wet-Lab Dossier).
-        </div>
-        """, unsafe_allow_html=True)
+        st.caption(f"ℹ️ {active_row['mol_id']}: In-Silico Proposed Analogue (Unpublished structure; surrogate prediction only. See Tab 5 for benchmark reference series).")
 
-    st.markdown(f"""
-    <div class="mochi-info-box">
+    with st.expander("🧪 Pharmacophore & In-Silico ADMET Profile", expanded=False):
+        st.markdown(f"""
         <div style="margin-bottom: 6px;">{clean_badge} {herg_badge} {synth_badge}</div>
-        <strong>Pharmacophore & ADMET Context:</strong><br>
-        • Est. Potency: <strong>~{ic50_est_nM:.1f} nM</strong> vs Pks13 catalytic pocket<br>
-        • Synthetic Route: <strong>~{steps_v} Steps</strong> ({rxn_v}) | Complexity Index: <strong>{scscore_v:.2f}</strong><br>
-        • Aq. Solubility: <strong>~{sol_um:.1f} µM</strong> (Delaney LogS: {logs_v:.2f})<br>
-        • Mouse Microsomal t½: <strong>~{t12_v:.0f} min</strong> (Liver clearance)<br>
-        • Lipinski Ro5: <strong>{lip_str}</strong> | MW: <strong>{mw_val:.1f} Da</strong>
-    </div>
-    """, unsafe_allow_html=True)
+        • <strong>Synthetic Route:</strong> ~{steps_v} Steps ({rxn_v}) | Complexity Index: <strong>{scscore_v:.2f}</strong><br>
+        • <strong>Aqueous Solubility:</strong> ~{sol_um:.1f} µM (Delaney LogS: {logs_v:.2f})<br>
+        • <strong>Mouse Microsomal t½:</strong> ~{t12_v:.0f} min (Liver clearance heuristic)<br>
+        • <strong>Lipinski Ro5:</strong> {lip_str} | MW: <strong>{mw_val:.1f} Da</strong>
+        """, unsafe_allow_html=True)
 
     act1, act2 = st.columns(2)
     with act1:
@@ -1243,7 +1226,7 @@ with tab_screening:
         st.markdown("**Active Profile Weight Distribution:**")
         w_labels = ["Potency (μ)", "Drug-Likeness (QED)", "Synthetic Ease (SA)", "Aqueous Sol", "Metabolic t½", "hERG Safety"]
         w_vals_pct = [wn_mu * 100, wn_qed * 100, wn_sa * 100, wn_sol * 100, wn_micro * 100, wn_herg * 100]
-        w_colors = ["#2a6f55", "#486557", "#5a7365", "#78716c", "#a06cd5", "#3b82f6"]
+        w_colors = ["#2a6f55", "#486557", "#5a7365", "#78716c", "#c28b5b", "#8c5e63"]
         fig_w = go.Figure()
         fig_w.add_trace(go.Bar(
             x=w_vals_pct,
@@ -1669,14 +1652,9 @@ with tab_compare:
             components.html(render_svg_html(svg_ref, height=145), height=150)
         st.button(f"Focus {ref_row['mol_id']} Lead", key="btn_foc_lead", on_click=set_active_candidate, args=(ref_row["mol_id"],), use_container_width=True)
 
-    # Informative Head-to-Head Comparison Battle Scorecard
+    # Informative Head-to-Head Comparison Summary
     if row_a["mol_id"] == row_b["mol_id"]:
-        st.markdown(f"""
-        <div class="mochi-info-box">
-            <strong>Identical Candidate Comparison:</strong> Both selections are identical (<strong>{row_a['mol_id']}</strong>).<br>
-            Select a different molecule for Candidate B (or reference TAM16) to evaluate differential potency, drug-likeness, and synthetic advantages.
-        </div>
-        """, unsafe_allow_html=True)
+        st.caption(f"ℹ️ Both selections are identical ({row_a['mol_id']}). Select a distinct molecule for Candidate B to evaluate differential potency, drug-likeness, and synthetic advantages.")
     else:
         wins_a = 0
         wins_b = 0
@@ -1722,12 +1700,11 @@ with tab_compare:
             winner_text = f"Balanced multi-parameter profile ({wins_a}–{wins_b}) between {row_a['mol_id']} and {row_b['mol_id']}"
             reasons_winner = ["Balanced multi-objective trade-offs across affinity, QED, and SA"]
 
-        st.markdown(f"""
-        <div class="mochi-info-box">
+        with st.expander("📊 Multi-Parameter Optimization (MPO) Comparison Summary", expanded=False):
+            st.markdown(f"""
             <strong>Multi-Parameter Optimization (MPO) Triage Verdict:</strong> {winner_text}<br>
-            Key Advantages: {' • '.join(reasons_winner)}
-        </div>
-        """, unsafe_allow_html=True)
+            <span style="color: #78716c; font-size: 0.80rem;">Key Advantages: {' • '.join(reasons_winner)}</span>
+            """, unsafe_allow_html=True)
 
     # Multi-Parametric Radar Plot (MPO Radar)
     radar_col, table_col = st.columns([1.1, 1.2], gap="large")
@@ -1753,25 +1730,25 @@ with tab_compare:
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_a + [vals_a[0]], theta=closed_metrics, fill="toself",
             name=f"A: {row_a['mol_id']}",
-            line=dict(color="#7b2cbf", width=2.8),
-            marker=dict(size=6, color="#7b2cbf"),
-            fillcolor="rgba(123, 44, 191, 0.22)",
+            line=dict(color="#2a6f55", width=2.4),
+            marker=dict(size=5, color="#2a6f55"),
+            fillcolor="rgba(42, 111, 85, 0.16)",
             hovertemplate="<b>A: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_b + [vals_b[0]], theta=closed_metrics, fill="toself",
             name=f"B: {row_b['mol_id']}",
-            line=dict(color="#a06cd5", width=2.8),
-            marker=dict(size=6, color="#a06cd5"),
-            fillcolor="rgba(160, 108, 213, 0.18)",
+            line=dict(color="#8c5e63", width=2.4),
+            marker=dict(size=5, color="#8c5e63"),
+            fillcolor="rgba(140, 94, 99, 0.14)",
             hovertemplate="<b>B: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_ref + [vals_ref[0]], theta=closed_metrics, fill="toself",
             name=f"Lead: {ref_row['mol_id']}",
-            line=dict(color="#525b68", width=2.0, dash="dash"),
-            marker=dict(size=5, color="#525b68"),
-            fillcolor="rgba(82, 91, 104, 0.08)",
+            line=dict(color="#57534e", width=1.8, dash="dash"),
+            marker=dict(size=4, color="#57534e"),
+            fillcolor="rgba(87, 83, 78, 0.06)",
             hovertemplate="<b>Lead: %{theta}</b><br>Score: <b>%{r:.2f}</b><extra></extra>"
         ))
         fig_radar.update_layout(
@@ -2256,16 +2233,14 @@ with tab_conformer:
 # Tab 4: Digital Annealing Studio & Live QUBO Simulator
 # ==============================================================================
 with tab_solvers:
-    # Top Educational & Product Output Guide
-    st.markdown("""
-    <div class="mochi-info-box">
-        <strong>What Does Tab 4 Do & How Are Results Interpreted?</strong><br>
+    # Top Educational & Product Output Guide (Minimized in interactive drawer)
+    with st.expander("❓ What Does Tab 4 Do & How Are Results Interpreted?", expanded=False):
+        st.markdown("""
         • <strong>The Purpose of Tab 4:</strong> Evaluates combinatorial fragment placements in the Pks13 catalytic pocket (PDB 5V3Y) formulated as a Quadratic Unconstrained Binary Optimization (QUBO) problem based on the Yanagisawa et al. (2024) flexible docking framework.<br>
         • <strong>QUBO Objective Energy (kcal/mol):</strong> Represents the overall combinatorial objective ($H = A H_1 + B H_2 + C H_3 + D H_4$). Combines protein-fragment interaction energy ($H_1$), steric clash penalties ($H_2$), and covalent connectivity rewards ($H_3$). <em>Lower (more negative) is better</em>.<br>
         • <strong>Pocket Feasibility:</strong> Assesses whether each fragment satisfies the one-hot placement constraint without steric overlap. Unfeasible raw solver bitstrings undergo one-hot constraint repair to yield physically valid 3D poses.<br>
         • <strong>Time-to-Solution (TTS99):</strong> Benchmarks algorithmic scaling across simulated annealing (TApSA, SpSA) and Tabu-enhanced simulated bifurcation (tSB) variants.
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
 
     mol_options = df_active["mol_id"].tolist()
@@ -2755,14 +2730,14 @@ with tab_solvers:
                 st.metric("Exact Baseline Energy", f"{exact_solver['energy']:.2f}")
 
         cs1, cs2 = st.columns([1.1, 1.1], gap="large")
-        solver_purples = ["#5e548e", "#7b2cbf", "#9d4edd", "#b072e6"]
+        solver_palette = ["#2a6f55", "#44403c", "#c28b5b", "#607274"]
 
         with cs1:
             st.markdown("##### Ground-State Energy Across Solvers (kcal/mol)")
             fig_e = go.Figure()
             fig_e.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["energy"],
-                marker_color=solver_purples, text=[f"{e:.2f}" for e in df_solvers["energy"]],
+                marker_color=solver_palette, text=[f"{e:.2f}" for e in df_solvers["energy"]],
                 textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_e.update_layout(
@@ -2778,7 +2753,7 @@ with tab_solvers:
             fig_t = go.Figure()
             fig_t.add_trace(go.Bar(
                 x=df_solvers["solver"], y=df_solvers["tts_99"],
-                marker_color=solver_purples, text=[f"{t:.4f}s" for t in df_solvers["tts_99"]],
+                marker_color=solver_palette, text=[f"{t:.4f}s" for t in df_solvers["tts_99"]],
                 textposition="outside", textfont=dict(color="#44403c", size=11)
             ))
             fig_t.update_layout(
@@ -3049,12 +3024,12 @@ with tab_audit:
         df_var.columns = ["Variant", "Amino Acid Mutation", "Prevalence", "Baseline Score", "Mutation Sensitivity Shift", "Heuristic Retention Index %", "Resilience Status", "Structural Mechanism"]
         st.dataframe(df_var, use_container_width=True)
 
-        # Cross-Variant Potency Retention Bar Chart in Soft Purple
+        # Cross-Variant Potency Retention Bar Chart in Mochi Tones
         st.markdown(f"**Cross-Variant Heuristic Retention Profile for {review_mol}:**")
         fig_mut = go.Figure()
         var_names = [v["variant_name"] for v in var_profiles]
         ret_pcts = [v["potency_retention_pct"] for v in var_profiles]
-        bar_colors = ["#7b2cbf" if r >= 80 else ("#9d4edd" if r >= 50 else "#64748b") for r in ret_pcts]
+        bar_colors = ["#2a6f55" if r >= 80 else ("#c28b5b" if r >= 50 else "#8c5e63") for r in ret_pcts]
 
         fig_mut.add_trace(go.Bar(
             x=var_names,
@@ -3204,7 +3179,7 @@ with tab_audit:
             text=valid_df["mol_id"],
             textposition="top center",
             textfont=dict(size=10, color="#292524"),
-            marker=dict(size=10, color="#7b2cbf", line=dict(width=1.5, color="#ffffff")),
+            marker=dict(size=9, color="#2a6f55", line=dict(width=1.5, color="#ffffff")),
             customdata=np.column_stack([
                 valid_df["mol_id"],
                 valid_df["exp_ic50_nM"],
